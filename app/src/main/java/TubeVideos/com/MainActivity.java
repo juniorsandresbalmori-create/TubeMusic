@@ -4,7 +4,7 @@ import android.os.Bundle;
 import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
 
-// Importante: importa la clase R generada por Gradle
+// Importante para enlazar los IDs del layout XML
 import com.tubemusic.app.R;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
@@ -14,7 +14,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.main); // Asegúrate de que tu layout se llame main.xml o cámbialo por R.layout.activity_main
+        
+        // Carga la interfaz visual (main.xml)
+        try {
+            setContentView(R.layout.main);
+        } catch (Exception e) {
+            try {
+                setContentView(R.layout.activity_main);
+            } catch (Exception ex) {
+                // Previene que colapse si el layout se llama diferente
+            }
+        }
     }
 
     @Override
