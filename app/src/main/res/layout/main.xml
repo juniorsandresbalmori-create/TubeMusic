@@ -5,13 +5,15 @@
     android:orientation="vertical"
     android:background="#121212">
 
+    <!-- BARRA SUPERIOR MORADA -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="#D32F2F"
+        android:background="#8E24AA"
         android:paddingStart="16dp"
         android:paddingEnd="16dp">
 
+        <!-- Contador / Timer -->
         <TextView
             android:id="@+id/tvTimer"
             android:layout_width="wrap_content"
@@ -23,6 +25,7 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
+        <!-- Botón de Menú -->
         <ImageView
             android:id="@+id/btnMenu"
             android:layout_width="32dp"
@@ -37,6 +40,7 @@
 
     </RelativeLayout>
 
+    <!-- CONTENEDOR CENTRAL -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -45,6 +49,7 @@
         android:orientation="vertical"
         android:padding="24dp">
 
+        <!-- Campo de texto para el enlace -->
         <EditText
             android:id="@+id/etUrl"
             android:layout_width="match_parent"
@@ -59,11 +64,12 @@
             android:textColorHint="#888888"
             android:textSize="15sp" />
 
+        <!-- Botón de Descarga Morado -->
         <Button
             android:id="@+id/btnDownload"
             android:layout_width="match_parent"
             android:layout_height="50dp"
-            android:backgroundTint="#D32F2F"
+            android:backgroundTint="#8E24AA"
             android:text="DESCARGAR MP3"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
