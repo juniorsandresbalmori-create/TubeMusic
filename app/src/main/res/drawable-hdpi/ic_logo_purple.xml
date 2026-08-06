@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="512dp"
+    android:height="512dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    
+    <!-- Fondo morado redondeado -->
+    <path
+        android:fillColor="#8E24AA"
+        android:pathData="M120,0 L392,0 A120,120 0 0,1 512,120 L512,392 A120,120 0 0,1 392,512 L120,512 A120,120 0 0,1 0,392 L0,120 A120,120 0 0,1 120,0 Z" />
+
+    <!-- Rectángulo Blanco Estilo Pantalla -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M151,146 L361,146 A55,55 0 0,1 416,201 L416,311 A55,55 0 0,1 361,366 L151,366 A55,55 0 0,1 96,311 L96,201 A55,55 0 0,1 151,146 Z" />
+
+    <!-- Triángulo de Play Morado Oscuro -->
+    <path
+        android:fillColor="#4A148C"
+        android:pathData="M216,206 L326,256 L216,306 Z" />
+</vector>
