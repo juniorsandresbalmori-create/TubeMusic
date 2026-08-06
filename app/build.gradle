@@ -3,12 +3,12 @@ plugins {
 }
 
 android {
-    namespace 'com.tubemusic.app'
+    namespace 'TubeVideos.com'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.tubemusic.app"
-        minSdk 21
+        applicationId "TubeVideos.com"
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -17,10 +17,20 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    
+    // Dependencia requerida para solucionar los errores de importación de AdMob
+    implementation 'com.google.android.gms:play-services-ads:23.0.0'
 }
