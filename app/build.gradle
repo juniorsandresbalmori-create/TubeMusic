@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.my.newproject' // Cambia esto por tu paquete real si es distinto
+    namespace 'com.tubemusic.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.my.newproject"
+        applicationId "com.tubemusic.app"
         minSdk 21
         targetSdk 34
         versionCode 1
@@ -19,11 +19,6 @@ android {
             minifyEnabled false
         }
     }
-}
-
-repositories {
-    google()
-    mavenCentral()
 }
 
 dependencies {
