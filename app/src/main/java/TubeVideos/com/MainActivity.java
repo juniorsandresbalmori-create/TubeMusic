@@ -1,17 +1,26 @@
 package TubeVideos.com;
 
 import android.app.Dialog;
+import android.app.DownloadManager;
+import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.LoadAdError;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.rewarded.RewardedAd;
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 import com.tubemusic.app.R;
 
 import java.util.Locale;
@@ -20,8 +29,9 @@ public class MainActivity extends AppCompatActivity {
 
     private int rewardSeconds = 0;
     private TextView tvTimer;
-    
-    // Handler y Runnable para el descuento automático en tiempo real
+    private EditText etUrl;
+    private RewardedAd rewardedAd;
+
     private final Handler timerHandler = new Handler(Looper.getMainLooper());
     private final Runnable timerRunnable = new Runnable() {
         @Override
@@ -31,8 +41,7 @@ public class MainActivity extends AppCompatActivity {
                 updateTimerText();
                 saveSeconds();
             }
-            // Repetir cada 1000 milisegundos (1 segundo)
-            timerHandler.postDelayed(this, 1000); 
+            timerHandler.postDelayed(this, 1000);
         }
     };
 
@@ -41,75 +50,112 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
-        // 1. Restaurar tiempo guardado anteriormente
+        MobileAds.initialize(this, initializationStatus -> {});
+        loadRewardedAd();
+
         SharedPreferences prefs = getSharedPreferences("TubeMusicPrefs", MODE_PRIVATE);
         rewardSeconds = prefs.getInt("rewardSeconds", 0);
 
-        // 2. Vincular elementos del XML
         tvTimer = findViewById(R.id.tvTimer);
+        etUrl = findViewById(R.id.etUrl);
         View btnMenu = findViewById(R.id.btnMenu);
-        
-        // Vistas opcionales si existen en main.xml
         View btnDownload = findViewById(R.id.btnDownload);
 
         updateTimerText();
 
-        // 3. Abrir ventana de anuncios al presionar la llave/herramienta o el reloj
-        if (btnMenu != null) {
-            btnMenu.setOnClickListener(v -> showAdsDialog());
-        }
-        if (tvTimer != null) {
-            tvTimer.setOnClickListener(v -> showAdsDialog());
-        }
+        if (btnMenu != null) btnMenu.setOnClickListener(v -> showAdsDialog());
+        if (tvTimer != null) tvTimer.setOnClickListener(v -> showAdsDialog());
 
-        // 4. Validar tiempo disponible al presionar DESCARGAR MP3
         if (btnDownload != null) {
             btnDownload.setOnClickListener(v -> {
+                String url = etUrl.getText() != null ? etUrl.getText().toString().trim() : "";
+
                 if (rewardSeconds <= 0) {
-                    Toast.makeText(MainActivity.this, "¡Sin tiempo disponible! Ve un anuncio para obtener más tiempo.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, "¡Sin tiempo disponible! Ve un anuncio.", Toast.LENGTH_LONG).show();
                     showAdsDialog();
+                } else if (url.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "Ingresa o pega un enlace primero.", Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(MainActivity.this, "Procesando descarga...", Toast.LENGTH_SHORT).show();
+                    startDownload(url);
                 }
             });
         }
 
-        // 5. Iniciar la cuenta regresiva en vivo
         timerHandler.postDelayed(timerRunnable, 1000);
     }
 
-    // Desplegar la ventana flotante de recompensas
+    private void startDownload(String downloadUrl) {
+        if (!downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
+            downloadUrl = "https://" + downloadUrl;
+        }
+
+        try {
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
+            request.setTitle("TubeMusic MP3");
+            request.setDescription("Descargando archivo de audio...");
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "TubeMusic_" + System.currentTimeMillis() + ".mp3");
+
+            DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (manager != null) {
+                manager.enqueue(request);
+                Toast.makeText(this, "Descarga iniciada en segundo plano", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Error al procesar la URL de descarga", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void loadRewardedAd() {
+        AdRequest adRequest = new AdRequest.Builder().build();
+        RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917",
+            adRequest, new RewardedAdLoadCallback() {
+                @Override
+                public void onAdFailedToLoad(@NonNull LoadAdError loadAdError) {
+                    rewardedAd = null;
+                }
+                @Override
+                public void onAdLoaded(@NonNull RewardedAd ad) {
+                    rewardedAd = ad;
+                }
+            });
+    }
+
     private void showAdsDialog() {
         Dialog dialog = new Dialog(this);
         dialog.setContentView(R.layout.dialog_ads);
 
-        int[] buttonIds = {
-            R.id.btnAd5s, 
-            R.id.btnAd15s, 
-            R.id.btnAd30s, 
-            R.id.btnAd45s, 
-            R.id.btnAd60s
-        };
-        int[] secondsToAdd = {300, 1800, 3600, 5400, 7200};
+        int[] buttonIds = {R.id.btnAd5s, R.id.btnAd15s, R.id.btnAd30s, R.id.btnAd45s, R.id.btnAd60s};
+        int[] secondsToAdd = {300, 1200, 3600, 5400, 7200};
 
         for (int i = 0; i < buttonIds.length; i++) {
             View btn = dialog.findViewById(buttonIds[i]);
             if (btn != null) {
                 final int seconds = secondsToAdd[i];
                 btn.setOnClickListener(v -> {
-                    rewardSeconds += seconds;
-                    updateTimerText();
-                    saveSeconds();
-                    Toast.makeText(MainActivity.this, "¡Tiempo sumado correctamente!", Toast.LENGTH_SHORT).show();
                     dialog.dismiss();
+                    showAdAndReward(seconds);
                 });
             }
         }
-
         dialog.show();
     }
 
-    // Actualizar el texto del contador en formato HH:MM:SS
+    private void showAdAndReward(int secondsGranted) {
+        if (rewardedAd != null) {
+            rewardedAd.show(this, rewardItem -> {
+                rewardSeconds += secondsGranted;
+                updateTimerText();
+                saveSeconds();
+                Toast.makeText(MainActivity.this, "¡Recompensa otorgada!", Toast.LENGTH_SHORT).show();
+                loadRewardedAd();
+            });
+        } else {
+            Toast.makeText(this, "Cargando anuncio... Inténtalo de nuevo.", Toast.LENGTH_SHORT).show();
+            loadRewardedAd();
+        }
+    }
+
     private void updateTimerText() {
         if (tvTimer != null) {
             long hours = rewardSeconds / 3600;
@@ -119,7 +165,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Guardar los segundos restantes en almacenamiento interno
     private void saveSeconds() {
         SharedPreferences prefs = getSharedPreferences("TubeMusicPrefs", MODE_PRIVATE);
         prefs.edit().putInt("rewardSeconds", rewardSeconds).apply();
@@ -128,7 +173,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Detener el temporizador para evitar consumo inútil de batería y fugas de memoria
         timerHandler.removeCallbacks(timerRunnable);
     }
-                              }
+                               }
