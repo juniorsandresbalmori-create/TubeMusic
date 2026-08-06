@@ -4,7 +4,7 @@ import android.os.Bundle;
 import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
 
-// Importante para enlazar los IDs del layout XML
+// Importa la clase R generada para tus recursos
 import com.tubemusic.app.R;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
@@ -15,16 +15,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Carga la interfaz visual (main.xml)
-        try {
-            setContentView(R.layout.main);
-        } catch (Exception e) {
-            try {
-                setContentView(R.layout.activity_main);
-            } catch (Exception ex) {
-                // Previene que colapse si el layout se llama diferente
-            }
-        }
+        // Carga tu diseño main.xml
+        setContentView(R.layout.main);
     }
 
     @Override
@@ -35,12 +27,5 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             rewardSeconds = 300;  // 5m
         } else if (id == R.id.btnAd15s) {
             rewardSeconds = 1800; // 30m
-        } else if (id == R.id.btnAd30s) {
-            rewardSeconds = 3600; // 1h
-        } else if (id == R.id.btnAd45s) {
-            rewardSeconds = 5400; // 1h 30m
-        } else if (id == R.id.btnAd60s) {
-            rewardSeconds = 7200; // 2h
-        }
-    }
-}
+        } else if (id ==
+                   
