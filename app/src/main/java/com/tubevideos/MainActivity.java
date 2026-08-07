@@ -211,4 +211,38 @@ public class MainActivity extends AppCompatActivity {
         }
     }
                         }
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+// ... dentro de tu MainActivity
+
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+
+    // Inicializar yt-dlp...
+    
+    // Pedir permisos al abrir la app
+    solicitarPermisosAlmacenamiento();
+}
+
+private void solicitarPermisosAlmacenamiento() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_MEDIA_AUDIO}, 100);
+        }
+    } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) { // Android 9 o menor
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{
+                Manifest.permission.WRITE_EXTERNAL_STORAGE, 
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }, 100);
+        }
+    }
+    }
+
         
