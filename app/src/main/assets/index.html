@@ -5,116 +5,133 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TubeMusic</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #121212; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-    body {
-      background-color: #121212;
-      color: #ffffff;
-      font-family: system-ui, -apple-system, sans-serif;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
+    .header-bar { background-color: #8b5cf6; height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; font-weight: bold; font-size: 18px; }
+    .icon-btn { background: none; border: none; color: #ffffff; font-size: 22px; cursor: pointer; }
 
-    /* Barra superior morada */
-    .header-bar {
-      background-color: #8b5cf6;
-      height: 56px;
-      padding: 0 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-weight: bold;
-      font-size: 18px;
-    }
+    .view-container { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 20px; }
+    .download-box { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 12px; }
 
-    .icon-btn {
-      background: none;
-      border: none;
-      color: #ffffff;
-      font-size: 20px;
-      cursor: pointer;
-    }
+    .search-input { width: 100%; padding: 14px 16px; background-color: #242424; border: 1px solid #333333; border-radius: 4px; color: #ffffff; font-size: 14px; outline: none; }
+    .search-input::placeholder { color: #71717a; }
 
-    /* Contenido centrado */
-    .main-content {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 0 20px;
-    }
+    .download-btn { width: 100%; padding: 14px; background-color: #8b5cf6; color: #ffffff; border: none; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; }
+    .download-btn:disabled { background-color: #4c1d95; color: #888; cursor: not-allowed; }
 
-    .download-box {
-      width: 100%;
-      max-width: 480px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+    .menu-container { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; gap: 12px; }
+    .menu-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
 
-    /* Campo de texto gris oscuro */
-    .search-input {
-      width: 100%;
-      padding: 14px 16px;
-      background-color: #242424;
-      border: 1px solid #333333;
-      border-radius: 4px;
-      color: #ffffff;
-      font-size: 14px;
-      outline: none;
-    }
+    .pill-btn { width: 100%; max-width: 420px; padding: 14px 20px; background-color: #8b5cf6; color: #ffffff; border: none; border-radius: 25px; font-size: 12px; font-weight: bold; cursor: pointer; text-transform: uppercase; text-align: center; }
+    .pill-btn:active { background-color: #7c3aed; }
+    .volver-btn { background: none; border: none; color: #a1a1aa; font-size: 13px; font-weight: bold; margin-top: 15px; cursor: pointer; }
 
-    .search-input::placeholder {
-      color: #71717a;
-    }
-
-    /* Botón morado */
-    .download-btn {
-      width: 100%;
-      padding: 14px;
-      background-color: #8b5cf6;
-      color: #ffffff;
-      border: none;
-      border-radius: 4px;
-      font-weight: bold;
-      font-size: 14px;
-      letter-spacing: 0.5px;
-      cursor: pointer;
-    }
-
-    .download-btn:active {
-      background-color: #7c3aed;
-    }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
   <header class="header-bar">
-    <span>TubeMusic</span>
-    <button class="icon-btn">🔧</button>
+    <span id="timerText">00:04:24</span>
+    <button class="icon-btn" id="openMenuBtn">🔧</button>
   </header>
 
-  <main class="main-content">
+  <!-- Descargador Main -->
+  <main id="mainView" class="view-container">
     <div class="download-box">
       <input type="text" id="urlInput" class="search-input" placeholder="Pegar enlace o buscar..." />
       <button id="downloadBtn" class="download-btn">DESCARGAR MP3</button>
     </div>
   </main>
 
+  <!-- Menú Conseguir Tiempo -->
+  <main id="menuView" class="menu-container hidden">
+    <h2 class="menu-title">CONSEGUIR TIEMPO</h2>
+
+    <button class="pill-btn" onclick="solicitarAnuncio(15)">+15 SEGUNDOS (ANUNCIO CORTO)</button>
+    <button class="pill-btn" onclick="solicitarAnuncio(30)">+30 SEGUNDOS (ANUNCIO MEDIO)</button>
+    <button class="pill-btn" onclick="solicitarAnuncio(300)">+5 MINUTOS (ANUNCIO LARGO)</button>
+    <button class="pill-btn" onclick="solicitarAnuncio(1800)">+30 MINUTOS (PASE EXTENDIDO)</button>
+    <button class="pill-btn" onclick="solicitarAnuncio(3600)">+1 HORA (PASE PREMIUM)</button>
+
+    <button id="closeMenuBtn" class="volver-btn">VOLVER</button>
+  </main>
+
   <script>
-    document.getElementById('downloadBtn').addEventListener('click', () => {
+    // Estado del tiempo (264 segundos = 00:04:24 iniciales)
+    let tiempoRestante = 264; 
+
+    const timerText = document.getElementById('timerText');
+    const mainView = document.getElementById('mainView');
+    const menuView = document.getElementById('menuView');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    // Formateador de tiempo a HH:MM:SS
+    function actualizarRelojUI() {
+      const horas = Math.floor(tiempoRestante / 3600);
+      const minutos = Math.floor((tiempoRestante % 3600) / 60);
+      const segundos = tiempoRestante % 60;
+
+      const hStr = String(horas).padStart(2, '0');
+      const mStr = String(minutos).padStart(2, '0');
+      const sStr = String(segundos).padStart(2, '0');
+
+      timerText.textContent = `${hStr}:${mStr}:${sStr}`;
+
+      if (tiempoRestante <= 0) {
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = "SIN TIEMPO DISPONIBLE";
+      } else {
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = "DESCARGAR MP3";
+      }
+    }
+
+    // Cuenta regresiva cada segundo
+    setInterval(() => {
+      if (tiempoRestante > 0) {
+        tiempoRestante--;
+        actualizarRelojUI();
+      }
+    }, 1000);
+
+    // Sumar tiempo otorgado por el anuncio desde Java
+    function sumarTiempo(segundos) {
+      tiempoRestante += segundos;
+      actualizarRelojUI();
+    }
+
+    function solicitarAnuncio(segundos) {
+      if (window.AndroidBridge) {
+        window.AndroidBridge.verAnuncioPorTiempo(segundos);
+      }
+    }
+
+    // Iniciar descarga
+    downloadBtn.addEventListener('click', () => {
       const url = document.getElementById('urlInput').value.trim();
-      if (url) {
-        // Aquí conectás la lógica JS que procesa la descarga del MP3
-        console.log("Procesando descarga para:", url);
+      if (!url) {
+        alert("Ingresá un enlace válido.");
+        return;
+      }
+      if (tiempoRestante > 0 && window.AndroidBridge) {
+        window.AndroidBridge.procesarDescarga(url);
       }
     });
-  </script>
 
+    // Navegación de vistas
+    document.getElementById('openMenuBtn').addEventListener('click', () => {
+      mainView.classList.add('hidden');
+      menuView.classList.remove('hidden');
+    });
+
+    document.getElementById('closeMenuBtn').addEventListener('click', () => {
+      menuView.classList.add('hidden');
+      mainView.classList.remove('hidden');
+    });
+
+    actualizarRelojUI();
+  </script>
 </body>
 </html>
