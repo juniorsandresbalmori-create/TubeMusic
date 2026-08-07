@@ -24,12 +24,22 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
-import com.yausername.ffmpeg.FFmpeg;
-import com.yausername.youtubedl_android.YoutubeDL;
-import com.yausername.youtubedl_android.YoutubeDLException;
-import com.yausername.youtubedl_android.YoutubeDLRequest;
-import com.yausername.youtubedl_android.mapper.VideoInfo;
+import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.ServiceList;
+import org.schabi.newpipe.extractor.downloader.Downloader;
+import org.schabi.newpipe.extractor.downloader.Request;
+import org.schabi.newpipe.extractor.downloader.Response;
+import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
+import org.schabi.newpipe.extractor.stream.AudioStream;
+import org.schabi.newpipe.extractor.stream.StreamInfo;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
@@ -42,21 +52,17 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Inicialización del motor local yt-dlp y FFmpeg
-        try {
-            YoutubeDL.getInstance().init(getApplicationContext());
-            FFmpeg.getInstance().init(getApplicationContext());
-        } catch (YoutubeDLException e) {
-            e.printStackTrace();
-        }
+        // Inicializar NewPipeExtractor con el cliente HTTP local
+        NewPipe.init(AppDownloader.getInstance());
 
-        // Solicitud emergente de permisos de almacenamiento
+        // Pedir permisos de almacenamiento al iniciar
         solicitarPermisosAlmacenamiento();
 
-        // Configuración de AdMob y WebView
+        // Configuración AdMob
         MobileAds.initialize(this, initializationStatus -> {});
         loadRewardedAd();
 
+        // Configuración WebView
         webView = findViewById(R.id.webView);
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
@@ -138,32 +144,38 @@ public class MainActivity extends AppCompatActivity {
             }
 
             runOnUiThread(() -> 
-                webView.evaluateJavascript("mostrarCargando('Procesando video localmente...');", null)
+                webView.evaluateJavascript("mostrarCargando('Extrayendo audio desde tu red...');", null)
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
-                    // Petición local usando la red directa del dispositivo
-                    YoutubeDLRequest request = new YoutubeDLRequest(videoUrl);
-                    request.addOption("-f", "bestaudio[ext=m4a]/bestaudio");
+                    // Extraer información usando la IP del teléfono
+                    StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, videoUrl);
+                    List<AudioStream> audioStreams = info.getAudioStreams();
 
-                    VideoInfo streamInfo = YoutubeDL.getInstance().getInfo(request);
-                    String directAudioUrl = streamInfo.getUrl();
-                    String titulo = streamInfo.getTitle();
-
-                    runOnUiThread(() -> webView.evaluateJavascript("ocultarCargando();", null));
-
-                    if (directAudioUrl != null && !directAudioUrl.isEmpty()) {
-                        iniciarDescargaNativa(directAudioUrl, titulo);
-                    } else {
-                        mostrarToast("No se pudo obtener la URL de audio.");
+                    String directAudioUrl = "";
+                    if (audioStreams != null && !audioStreams.isEmpty()) {
+                        // Obtener el primer stream de audio directo (.m4a)
+                        directAudioUrl = audioStreams.get(0).getUrl();
                     }
+
+                    final String finalDownloadUrl = directAudioUrl;
+                    final String titulo = info.getName();
+
+                    runOnUiThread(() -> {
+                        webView.evaluateJavascript("ocultarCargando();", null);
+                        if (!finalDownloadUrl.isEmpty()) {
+                            iniciarDescargaNativa(finalDownloadUrl, titulo);
+                        } else {
+                            mostrarToast("No se encontró pista de audio disponible.");
+                        }
+                    });
 
                 } catch (Exception e) {
                     e.printStackTrace();
                     runOnUiThread(() -> {
                         webView.evaluateJavascript("ocultarCargando();", null);
-                        mostrarToast("Error en extracción: " + e.getLocalizedMessage());
+                        mostrarToast("Error al extraer enlace: " + e.getLocalizedMessage());
                     });
                 }
             });
@@ -172,7 +184,6 @@ public class MainActivity extends AppCompatActivity {
         private String limpiarUrlYoutube(String url) {
             if (url == null) return "";
             url = url.trim();
-
             if (url.contains("youtu.be/") && url.contains("si=") && !url.contains("?")) {
                 url = url.replace("si=", "?si=");
             }
@@ -205,4 +216,49 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
+
+    // Cliente HTTP interno para NewPipeExtractor
+    public static class AppDownloader extends Downloader {
+        private static AppDownloader instance;
+
+        public static AppDownloader getInstance() {
+            if (instance == null) instance = new AppDownloader();
+            return instance;
+        }
+
+        @Override
+        public Response execute(Request request) throws ReCaptchaException, java.io.IOException {
+            URL url = new URL(request.url());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod(request.httpMethod());
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
+
+            for (Map.Entry<String, List<String>> header : request.headers().entrySet()) {
+                for (String value : header.getValue()) {
+                    conn.setRequestProperty(header.getKey(), value);
+                }
             }
+
+            byte[] data = request.dataToSend();
+            if (data != null && data.length > 0) {
+                conn.setDoOutput(true);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(data);
+                }
+            }
+
+            int responseCode = conn.getResponseCode();
+            BufferedReader in = new BufferedReader(new InputStreamReader(
+                    responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream()));
+            StringBuilder responseBody = new StringBuilder();
+            String line;
+            while ((line = in.readLine()) != null) {
+                responseBody.append(line).append("\n");
+            }
+            in.close();
+
+            return new Response(responseCode, conn.getResponseMessage(), conn.getHeaderFields(), responseBody.toString(), request.url());
+        }
+    }
+                          }
