@@ -25,14 +25,17 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Inicialización de AdMob SDK
         MobileAds.initialize(this, initializationStatus -> {});
         loadRewardedAd();
 
+        // Configuración de la interfaz WebView
         webView = findViewById(R.id.webView);
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
 
+        // Registro del puente entre Java y la Web
         webView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/index.html");
@@ -40,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadRewardedAd() {
         AdRequest adRequest = new AdRequest.Builder().build();
+        // ID de prueba oficial de Google AdMob para anuncios bonificados
         RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917",
             adRequest, new RewardedAdLoadCallback() {
                 @Override
@@ -54,6 +58,16 @@ public class MainActivity extends AppCompatActivity {
             });
     }
 
+    @Override
+    public void onBackPressed() {
+        // Gestión del historial de navegación dentro del WebView
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
     public class WebAppInterface {
 
         @JavascriptInterface
@@ -62,8 +76,8 @@ public class MainActivity extends AppCompatActivity {
                 if (rewardedAd != null) {
                     rewardedAd.show(MainActivity.this, rewardItem -> {
                         Toast.makeText(MainActivity.this, "¡Tiempo acreditado!", Toast.LENGTH_SHORT).show();
-                        // Se le pasa el tiempo ganado en segundos al JS
-                        webView.evaluateJavascript("javascript:sumarTiempo(" + segundosAgregar + ");", null);
+                        // Ejecuta la función interna de JS sin prefijos innecesarios
+                        webView.evaluateJavascript("sumarTiempo(" + segundosAgregar + ");", null);
                         loadRewardedAd();
                     });
                 } else {
@@ -78,15 +92,6 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> 
                 Toast.makeText(MainActivity.this, "Iniciando descarga en segundo plano...", Toast.LENGTH_SHORT).show()
             );
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
         }
     }
 }
