@@ -13,7 +13,7 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // Soporte nativo de arquitecturas para ejecutable yt-dlp
+        // Arquitecturas necesarias para los binarios nativos de yt-dlp
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
         }
@@ -25,6 +25,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -36,7 +37,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'com.google.android.gms:play-services-ads:23.0.0'
 
-    // Librerías yt-dlp para Android
-    implementation 'com.github.yausername.youtubedl-android:library:0.17.0'
-    implementation 'com.github.yausername.youtubedl-android:ffmpeg:0.17.0'
+    // Librerías de yt-dlp y FFmpeg para Android (con la 'v' obligatoria de JitPack)
+    implementation 'com.github.yausername.youtubedl-android:library:v0.17.0'
+    implementation 'com.github.yausername.youtubedl-android:ffmpeg:v0.17.0'
 }
