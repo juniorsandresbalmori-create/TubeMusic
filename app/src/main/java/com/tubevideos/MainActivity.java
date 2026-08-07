@@ -104,21 +104,25 @@ public class MainActivity extends AppCompatActivity {
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
-                boolean exito = consultarApiCobalt("https://api.cobalt.tools/", videoUrl);
+                // Lista de instancias publicas alternativas
+                String[] instancias = {
+                    "https://api.cobalt.tools/",
+                    "https://cobalt-api.kwiatekmoments.com/",
+                    "https://cobalt.yts.rest/",
+                    "https://cobalt.streamin.me/"
+                };
 
-                if (!exito) {
-                    exito = consultarApiCobalt("https://cobalt-api.kwiatekmoments.com/", videoUrl);
-                }
-
-                if (!exito) {
-                    exito = consultarApiCobalt("https://co.wuk.sh/", videoUrl);
+                boolean exito = false;
+                for (String api : instancias) {
+                    exito = consultarApiCobalt(api, videoUrl);
+                    if (exito) break;
                 }
 
                 final boolean resultado = exito;
                 runOnUiThread(() -> {
                     webView.evaluateJavascript("ocultarCargando();", null);
                     if (!resultado) {
-                        mostrarToast("No se pudo obtener el audio. Verificá el enlace e intentá de nuevo.");
+                        mostrarToast("Servidores de conversión ocupados. Intenta con otro video o reintenta en unos instantes.");
                     }
                 });
             });
@@ -146,8 +150,8 @@ public class MainActivity extends AppCompatActivity {
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Accept", "application/json");
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(15000);
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(12000);
                 conn.setDoOutput(true);
 
                 JSONObject body = new JSONObject();
@@ -171,7 +175,11 @@ public class MainActivity extends AppCompatActivity {
                     in.close();
 
                     JSONObject jsonResponse = new JSONObject(response.toString());
+                    
                     String downloadUrl = jsonResponse.optString("url");
+                    if (downloadUrl.isEmpty() && jsonResponse.has("picker")) {
+                        downloadUrl = jsonResponse.optJSONArray("picker").getJSONObject(0).optString("url");
+                    }
 
                     if (!downloadUrl.isEmpty()) {
                         iniciarDescargaNativa(downloadUrl);
@@ -202,4 +210,5 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-            }
+                        }
+        
