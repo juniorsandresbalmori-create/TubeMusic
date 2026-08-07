@@ -37,7 +37,7 @@
     <button class="icon-btn" id="openMenuBtn">🔧</button>
   </header>
 
-  <!-- Descargador Main -->
+  <!-- Vista Principal -->
   <main id="mainView" class="view-container">
     <div class="download-box">
       <input type="text" id="urlInput" class="search-input" placeholder="Pegar enlace o buscar..." />
@@ -59,7 +59,7 @@
   </main>
 
   <script>
-    // Estado del tiempo (264 segundos = 00:04:24 iniciales)
+    // Estado inicial de tiempo (264 segundos = 00:04:24)
     let tiempoRestante = 264; 
 
     const timerText = document.getElementById('timerText');
@@ -67,7 +67,7 @@
     const menuView = document.getElementById('menuView');
     const downloadBtn = document.getElementById('downloadBtn');
 
-    // Formateador de tiempo a HH:MM:SS
+    // Formatear segundos a formato HH:MM:SS
     function actualizarRelojUI() {
       const horas = Math.floor(tiempoRestante / 3600);
       const minutos = Math.floor((tiempoRestante % 3600) / 60);
@@ -88,7 +88,7 @@
       }
     }
 
-    // Cuenta regresiva cada segundo
+    // Cronómetro regresivo
     setInterval(() => {
       if (tiempoRestante > 0) {
         tiempoRestante--;
@@ -96,37 +96,46 @@
       }
     }, 1000);
 
-    // Sumar tiempo otorgado por el anuncio desde Java
+    // Sumar tiempo otorgado desde la App (Java)
     function sumarTiempo(segundos) {
       tiempoRestante += segundos;
       actualizarRelojUI();
     }
 
+    // Solicitar la reproducción de anuncios a Android
     function solicitarAnuncio(segundos) {
       if (window.AndroidBridge) {
         window.AndroidBridge.verAnuncioPorTiempo(segundos);
+      } else {
+        console.log("Servicio nativo no disponible. Agregando tiempo en modo pruebas web.");
+        sumarTiempo(segundos);
       }
     }
 
-    // Iniciar descarga
+    // Procesar la orden de descarga
     downloadBtn.addEventListener('click', () => {
       const url = document.getElementById('urlInput').value.trim();
       if (!url) {
         alert("Ingresá un enlace válido.");
         return;
       }
-      if (tiempoRestante > 0 && window.AndroidBridge) {
-        window.AndroidBridge.procesarDescarga(url);
+      if (tiempoRestante > 0) {
+        if (window.AndroidBridge) {
+          window.AndroidBridge.procesarDescarga(url);
+        } else {
+          alert("Descarga simulada en navegador para: " + url);
+        }
       }
     });
 
-    // Navegación de vistas
+    // Cambios de pantallas
     document.getElementById('openMenuBtn').addEventListener('click', () => {
       mainView.classList.add('hidden');
       menuView.classList.remove('hidden');
     });
 
     document.getElementById('closeMenuBtn').addEventListener('click', () => {
+      menuView.classList.hidden = true;
       menuView.classList.add('hidden');
       mainView.classList.remove('hidden');
     });
