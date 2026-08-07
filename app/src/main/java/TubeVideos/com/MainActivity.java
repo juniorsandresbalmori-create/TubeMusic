@@ -1,9 +1,11 @@
-package TubeVideos.com;
+package com.tubevideos;
 
 import android.os.Bundle;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -23,16 +25,15 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Inicializar SDK de Google Mobile Ads
         MobileAds.initialize(this, initializationStatus -> {});
         loadRewardedAd();
 
-        // Configurar WebView
         webView = findViewById(R.id.webView);
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
-        
+
+        webView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/index.html");
     }
@@ -51,6 +52,33 @@ public class MainActivity extends AppCompatActivity {
                     rewardedAd = ad;
                 }
             });
+    }
+
+    public class WebAppInterface {
+
+        @JavascriptInterface
+        public void verAnuncioPorTiempo(final int segundosAgregar) {
+            runOnUiThread(() -> {
+                if (rewardedAd != null) {
+                    rewardedAd.show(MainActivity.this, rewardItem -> {
+                        Toast.makeText(MainActivity.this, "¡Tiempo acreditado!", Toast.LENGTH_SHORT).show();
+                        // Se le pasa el tiempo ganado en segundos al JS
+                        webView.evaluateJavascript("javascript:sumarTiempo(" + segundosAgregar + ");", null);
+                        loadRewardedAd();
+                    });
+                } else {
+                    Toast.makeText(MainActivity.this, "El anuncio aún no ha cargado. Reintentando...", Toast.LENGTH_SHORT).show();
+                    loadRewardedAd();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void procesarDescarga(String url) {
+            runOnUiThread(() -> 
+                Toast.makeText(MainActivity.this, "Iniciando descarga en segundo plano...", Toast.LENGTH_SHORT).show()
+            );
+        }
     }
 
     @Override
