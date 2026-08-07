@@ -1,12 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:orientation="vertical">
 
-    <!-- Aquí se define el ID "webView" que tu MainActivity está buscando -->
-    <WebView
-        android:id="@+id/webView"
+    <!-- Barra Superior Morada -->
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="56dp"
+        android:background="#8B5CF6"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
 
-</RelativeLayout>
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:text="TubeMusic"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Ajustes"
+            android:src="@android:drawable/ic_menu_preferences"
+            android:tint="#FFFFFF" />
+    </RelativeLayout>
+
+    <!-- Contenedor Central -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Campo de texto para la URL o búsqueda -->
+        <EditText
+            android:id="@+id/etUrl"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:background="@drawable/bg_input_dark"
+            android:hint="Pegar enlace o buscar..."
+            android:inputType="textUri"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#71717A"
+            android:textSize="14sp" />
+
+        <!-- Botón principal morado -->
+        <Button
+            android:id="@+id/btnDownload"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="12dp"
+            android:backgroundTint="#8B5CF6"
+            android:text="DESCARGAR MP3"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+</LinearLayout>
