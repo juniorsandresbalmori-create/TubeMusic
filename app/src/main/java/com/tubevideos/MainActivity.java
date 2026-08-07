@@ -96,24 +96,46 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void procesarDescarga(String videoUrl) {
+        public void procesarDescarga(String rawUrl) {
+            final String videoUrl = limpiarUrlYoutube(rawUrl);
+
             runOnUiThread(() -> 
-                Toast.makeText(MainActivity.this, "Procesando audio MP3...", Toast.LENGTH_SHORT).show()
+                webView.evaluateJavascript("mostrarCargando('Conectando servidor...');", null)
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
-                // Intenta con la API principal
                 boolean exito = consultarApiCobalt("https://api.cobalt.tools/", videoUrl);
-                
-                // Si la principal falla, intenta con un servidor espejo
+
                 if (!exito) {
                     exito = consultarApiCobalt("https://cobalt-api.kwiatekmoments.com/", videoUrl);
                 }
 
                 if (!exito) {
-                    mostrarToast("No se pudo obtener el audio. Revisa el enlace o intenta nuevamente.");
+                    exito = consultarApiCobalt("https://co.wuk.sh/", videoUrl);
                 }
+
+                final boolean resultado = exito;
+                runOnUiThread(() -> {
+                    webView.evaluateJavascript("ocultarCargando();", null);
+                    if (!resultado) {
+                        mostrarToast("No se pudo obtener el audio. Verificá el enlace e intentá de nuevo.");
+                    }
+                });
             });
+        }
+
+        private String limpiarUrlYoutube(String url) {
+            if (url == null) return "";
+            url = url.trim();
+            if (url.contains("youtu.be/") && url.contains("si=") && !url.contains("?")) {
+                url = url.replace("si=", "?si=");
+            }
+            if (url.contains("?si=")) {
+                url = url.split("\\?si=")[0];
+            } else if (url.contains("&si=")) {
+                url = url.split("&si=")[0];
+            }
+            return url;
         }
 
         private boolean consultarApiCobalt(String apiUrl, String videoUrl) {
@@ -123,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
                 conn.setConnectTimeout(10000);
                 conn.setReadTimeout(15000);
                 conn.setDoOutput(true);
@@ -172,7 +194,7 @@ public class MainActivity extends AppCompatActivity {
             DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             if (manager != null) {
                 manager.enqueue(request);
-                mostrarToast("¡Descarga iniciada! Revisa tus notificaciones.");
+                mostrarToast("¡Descarga iniciada! Revisá tus notificaciones.");
             }
         }
 
@@ -180,4 +202,4 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-}
+            }
