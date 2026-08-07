@@ -98,54 +98,68 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void procesarDescarga(String videoUrl) {
             runOnUiThread(() -> 
-                Toast.makeText(MainActivity.this, "Obteniendo enlace MP3...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(MainActivity.this, "Procesando audio MP3...", Toast.LENGTH_SHORT).show()
             );
 
-            // Procesa la llamada de red en un hilo en segundo plano
             Executors.newSingleThreadExecutor().execute(() -> {
-                try {
-                    URL url = new URL("https://api.cobalt.tools/");
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("POST");
-                    conn.setRequestProperty("Content-Type", "application/json");
-                    conn.setRequestProperty("Accept", "application/json");
-                    conn.setDoOutput(true);
+                // Intenta con la API principal
+                boolean exito = consultarApiCobalt("https://api.cobalt.tools/", videoUrl);
+                
+                // Si la principal falla, intenta con un servidor espejo
+                if (!exito) {
+                    exito = consultarApiCobalt("https://cobalt-api.kwiatekmoments.com/", videoUrl);
+                }
 
-                    JSONObject body = new JSONObject();
-                    body.put("url", videoUrl);
-                    body.put("downloadMode", "audio");
-                    body.put("audioFormat", "mp3");
-
-                    OutputStream os = conn.getOutputStream();
-                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
-                    os.flush();
-                    os.close();
-
-                    if (conn.getResponseCode() == 200) {
-                        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                        StringBuilder response = new StringBuilder();
-                        String line;
-                        while ((line = in.readLine()) != null) {
-                            response.append(line);
-                        }
-                        in.close();
-
-                        JSONObject jsonResponse = new JSONObject(response.toString());
-                        String downloadUrl = jsonResponse.optString("url");
-
-                        if (!downloadUrl.isEmpty()) {
-                            iniciarDescargaNativa(downloadUrl);
-                        } else {
-                            mostrarToast("No se pudo obtener el audio del video.");
-                        }
-                    } else {
-                        mostrarToast("Error del servidor de conversión.");
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    mostrarToast("Error al conectar con el servidor.");
+                if (!exito) {
+                    mostrarToast("No se pudo obtener el audio. Revisa el enlace o intenta nuevamente.");
                 }
             });
+        }
+
+        private boolean consultarApiCobalt(String apiUrl, String videoUrl) {
+            try {
+                URL url = new URL(apiUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(15000);
+                conn.setDoOutput(true);
+
+                JSONObject body = new JSONObject();
+                body.put("url", videoUrl);
+                body.put("downloadMode", "audio");
+                body.put("audioFormat", "mp3");
+
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                os.flush();
+                os.close();
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode == 200 || responseCode == 201) {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        response.append(line);
+                    }
+                    in.close();
+
+                    JSONObject jsonResponse = new JSONObject(response.toString());
+                    String downloadUrl = jsonResponse.optString("url");
+
+                    if (!downloadUrl.isEmpty()) {
+                        iniciarDescargaNativa(downloadUrl);
+                        return true;
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return false;
         }
 
         private void iniciarDescargaNativa(String streamUrl) {
@@ -166,4 +180,4 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-                          }
+}
