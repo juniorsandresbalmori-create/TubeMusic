@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace 'TubeVideos.com'
+    namespace 'com.tubevideos'
     compileSdk 34
 
     defaultConfig {
