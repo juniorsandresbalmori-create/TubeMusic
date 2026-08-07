@@ -1,8 +1,11 @@
 package com.tubevideos;
 
+import android.Manifest;
 import android.app.DownloadManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.JavascriptInterface;
@@ -12,6 +15,8 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.LoadAdError;
@@ -19,14 +24,12 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
-import org.json.JSONObject;
+import com.yausername.ffmpeg.FFmpeg;
+import com.yausername.youtubedl_android.YoutubeDL;
+import com.yausername.youtubedl_android.YoutubeDLException;
+import com.yausername.youtubedl_android.YoutubeDLRequest;
+import com.yausername.youtubedl_android.mapper.VideoInfo;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
@@ -39,6 +42,18 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Inicialización del motor local yt-dlp y FFmpeg
+        try {
+            YoutubeDL.getInstance().init(getApplicationContext());
+            FFmpeg.getInstance().init(getApplicationContext());
+        } catch (YoutubeDLException e) {
+            e.printStackTrace();
+        }
+
+        // Solicitud emergente de permisos de almacenamiento
+        solicitarPermisosAlmacenamiento();
+
+        // Configuración de AdMob y WebView
         MobileAds.initialize(this, initializationStatus -> {});
         loadRewardedAd();
 
@@ -50,6 +65,21 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    private void solicitarPermisosAlmacenamiento() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_MEDIA_AUDIO}, 100);
+            }
+        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE, 
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                }, 100);
+            }
+        }
     }
 
     private void loadRewardedAd() {
@@ -99,38 +129,50 @@ public class MainActivity extends AppCompatActivity {
         public void procesarDescarga(String rawUrl) {
             final String videoUrl = limpiarUrlYoutube(rawUrl);
 
+            if (videoUrl.isEmpty()) {
+                runOnUiThread(() -> {
+                    webView.evaluateJavascript("ocultarCargando();", null);
+                    mostrarToast("El enlace introducido no es válido.");
+                });
+                return;
+            }
+
             runOnUiThread(() -> 
-                webView.evaluateJavascript("mostrarCargando('Conectando servidor...');", null)
+                webView.evaluateJavascript("mostrarCargando('Procesando video localmente...');", null)
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
-                // Lista de instancias publicas alternativas
-                String[] instancias = {
-                    "https://api.cobalt.tools/",
-                    "https://cobalt-api.kwiatekmoments.com/",
-                    "https://cobalt.yts.rest/",
-                    "https://cobalt.streamin.me/"
-                };
+                try {
+                    // Petición local usando la red directa del dispositivo
+                    YoutubeDLRequest request = new YoutubeDLRequest(videoUrl);
+                    request.addOption("-f", "bestaudio[ext=m4a]/bestaudio");
 
-                boolean exito = false;
-                for (String api : instancias) {
-                    exito = consultarApiCobalt(api, videoUrl);
-                    if (exito) break;
-                }
+                    VideoInfo streamInfo = YoutubeDL.getInstance().getInfo(request);
+                    String directAudioUrl = streamInfo.getUrl();
+                    String titulo = streamInfo.getTitle();
 
-                final boolean resultado = exito;
-                runOnUiThread(() -> {
-                    webView.evaluateJavascript("ocultarCargando();", null);
-                    if (!resultado) {
-                        mostrarToast("Servidores de conversión ocupados. Intenta con otro video o reintenta en unos instantes.");
+                    runOnUiThread(() -> webView.evaluateJavascript("ocultarCargando();", null));
+
+                    if (directAudioUrl != null && !directAudioUrl.isEmpty()) {
+                        iniciarDescargaNativa(directAudioUrl, titulo);
+                    } else {
+                        mostrarToast("No se pudo obtener la URL de audio.");
                     }
-                });
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    runOnUiThread(() -> {
+                        webView.evaluateJavascript("ocultarCargando();", null);
+                        mostrarToast("Error en extracción: " + e.getLocalizedMessage());
+                    });
+                }
             });
         }
 
         private String limpiarUrlYoutube(String url) {
             if (url == null) return "";
             url = url.trim();
+
             if (url.contains("youtu.be/") && url.contains("si=") && !url.contains("?")) {
                 url = url.replace("si=", "?si=");
             }
@@ -142,67 +184,20 @@ public class MainActivity extends AppCompatActivity {
             return url;
         }
 
-        private boolean consultarApiCobalt(String apiUrl, String videoUrl) {
-            try {
-                URL url = new URL(apiUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(12000);
-                conn.setDoOutput(true);
+        private void iniciarDescargaNativa(String streamUrl, String titulo) {
+            String nombreLimpio = (titulo != null) ? titulo.replaceAll("[^a-zA-Z0-9.-]", "_") : "TubeMusic";
+            String nombreArchivo = nombreLimpio + ".m4a";
 
-                JSONObject body = new JSONObject();
-                body.put("url", videoUrl);
-                body.put("downloadMode", "audio");
-                body.put("audioFormat", "mp3");
-
-                OutputStream os = conn.getOutputStream();
-                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
-                os.flush();
-                os.close();
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode == 200 || responseCode == 201) {
-                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = in.readLine()) != null) {
-                        response.append(line);
-                    }
-                    in.close();
-
-                    JSONObject jsonResponse = new JSONObject(response.toString());
-                    
-                    String downloadUrl = jsonResponse.optString("url");
-                    if (downloadUrl.isEmpty() && jsonResponse.has("picker")) {
-                        downloadUrl = jsonResponse.optJSONArray("picker").getJSONObject(0).optString("url");
-                    }
-
-                    if (!downloadUrl.isEmpty()) {
-                        iniciarDescargaNativa(downloadUrl);
-                        return true;
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            return false;
-        }
-
-        private void iniciarDescargaNativa(String streamUrl) {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(streamUrl));
-            request.setTitle("TubeMusic MP3");
+            request.setTitle(titulo != null ? titulo : "TubeMusic Audio");
             request.setDescription("Descargando audio...");
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "TubeMusic_" + System.currentTimeMillis() + ".mp3");
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, nombreArchivo);
 
             DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             if (manager != null) {
                 manager.enqueue(request);
-                mostrarToast("¡Descarga iniciada! Revisá tus notificaciones.");
+                mostrarToast("¡Descarga iniciada!");
             }
         }
 
@@ -210,39 +205,4 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-                        }
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.os.Build;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
-// ... dentro de tu MainActivity
-
-@Override
-protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_main);
-
-    // Inicializar yt-dlp...
-    
-    // Pedir permisos al abrir la app
-    solicitarPermisosAlmacenamiento();
-}
-
-private void solicitarPermisosAlmacenamiento() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13+
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_MEDIA_AUDIO}, 100);
-        }
-    } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) { // Android 9 o menor
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{
-                Manifest.permission.WRITE_EXTERNAL_STORAGE, 
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            }, 100);
-        }
-    }
-    }
-
-        
+            }
