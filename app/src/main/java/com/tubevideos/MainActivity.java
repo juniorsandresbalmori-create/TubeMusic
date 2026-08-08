@@ -31,8 +31,8 @@ import org.schabi.newpipe.extractor.downloader.Request;
 import org.schabi.newpipe.extractor.downloader.Response;
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
 import org.schabi.newpipe.extractor.stream.AudioStream;
+import org.schabi.newpipe.extractor.stream.VideoStream;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
-import org.schabi.newpipe.extractor.stream.Stream;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -53,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Inicializar NewPipeExtractor con el downloader configurado
         NewPipe.init(AppDownloader.getInstance());
 
         solicitarPermisosAlmacenamiento();
@@ -155,11 +154,11 @@ public class MainActivity extends AppCompatActivity {
                     if (audioStreams != null && !audioStreams.isEmpty()) {
                         directAudioUrl = audioStreams.get(0).getUrl();
                     } 
-                    // 2. Respaldo: obtener el enlace de audio de los streams combinados
+                    // 2. Respaldo: obtener el enlace de los streams de video (contienen audio)
                     else {
-                        List<Stream> mixedStreams = info.getStreams();
-                        if (mixedStreams != null && !mixedStreams.isEmpty()) {
-                            directAudioUrl = mixedStreams.get(0).getUrl();
+                        List<VideoStream> videoStreams = info.getVideoStreams();
+                        if (videoStreams != null && !videoStreams.isEmpty()) {
+                            directAudioUrl = videoStreams.get(0).getUrl();
                         }
                     }
 
@@ -237,7 +236,6 @@ public class MainActivity extends AppCompatActivity {
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(10000);
 
-            // User-Agent real para evitar que YouTube bloquee las peticiones HTTP
             conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36");
             conn.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
 
@@ -268,4 +266,4 @@ public class MainActivity extends AppCompatActivity {
             return new Response(responseCode, conn.getResponseMessage(), conn.getHeaderFields(), responseBody.toString(), request.url());
         }
     }
-                }
+        }
