@@ -35,7 +35,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    // IP pública de tu VPS Debian asignada
+    // Servidor VPS Debian
     private static final String SERVER_IP = "190.114.254.167";
     private static final String SERVER_PORT = "8000";
 
@@ -171,12 +171,13 @@ public class MainActivity extends AppCompatActivity {
                         }
                         in.close();
 
+                        // Parseo compatible con respuestas en español e inglés
                         JSONObject json = new JSONObject(response.toString());
-                        String status = json.optString("status", "");
-                        String titulo = json.optString("title", "Audio_YouTube");
+                        String status = json.has("estado") ? json.optString("estado") : json.optString("status", "");
+                        String titulo = json.has("titulo") ? json.optString("titulo") : json.optString("title", "Audio_YouTube");
                         String streamUrl = json.optString("url", "");
 
-                        if ("ok".equals(status) && !streamUrl.isEmpty()) {
+                        if ("ok".equalsIgnoreCase(status) && !streamUrl.isEmpty()) {
                             logDev("🎵 [MI SERVIDOR] Audio extraído con éxito: " + titulo);
                             iniciarDescargaNativa(streamUrl, titulo);
                             exito = true;
@@ -232,4 +233,5 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-            }
+                                                  }
+                
