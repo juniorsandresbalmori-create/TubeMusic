@@ -24,23 +24,13 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
-import org.schabi.newpipe.extractor.NewPipe;
-import org.schabi.newpipe.extractor.ServiceList;
-import org.schabi.newpipe.extractor.downloader.Downloader;
-import org.schabi.newpipe.extractor.downloader.Request;
-import org.schabi.newpipe.extractor.downloader.Response;
-import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
-import org.schabi.newpipe.extractor.stream.AudioStream;
-import org.schabi.newpipe.extractor.stream.VideoStream;
-import org.schabi.newpipe.extractor.stream.StreamInfo;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
@@ -52,8 +42,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        NewPipe.init(AppDownloader.getInstance());
 
         solicitarPermisosAlmacenamiento();
 
@@ -130,9 +118,9 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void procesarDescarga(String rawUrl) {
-            final String videoUrl = limpiarUrlYoutube(rawUrl);
+            final String videoId = extraerVideoId(rawUrl);
 
-            if (videoUrl.isEmpty()) {
+            if (videoId.isEmpty()) {
                 runOnUiThread(() -> {
                     webView.evaluateJavascript("ocultarCargando();", null);
                     mostrarToast("El enlace introducido no es válido.");
@@ -141,69 +129,92 @@ public class MainActivity extends AppCompatActivity {
             }
 
             runOnUiThread(() -> 
-                webView.evaluateJavascript("mostrarCargando('Extrayendo audio desde tu red...');", null)
+                webView.evaluateJavascript("mostrarCargando('Obteniendo enlace de audio...');", null)
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
-                try {
-                    StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, videoUrl);
-                    String directAudioUrl = "";
+                // Instancias públicas de Piped
+                String[] instancias = {
+                    "https://api.piped.video/streams/",
+                    "https://pipedapi.kavin.rocks/streams/",
+                    "https://piped-api.garudalinux.org/streams/"
+                };
 
-                    // 1. Intentar obtener stream de solo audio
-                    List<AudioStream> audioStreams = info.getAudioStreams();
-                    if (audioStreams != null && !audioStreams.isEmpty()) {
-                        directAudioUrl = audioStreams.get(0).getUrl();
-                    } 
-                    // 2. Respaldo: obtener el enlace de los streams de video (contienen audio)
-                    else {
-                        List<VideoStream> videoStreams = info.getVideoStreams();
-                        if (videoStreams != null && !videoStreams.isEmpty()) {
-                            directAudioUrl = videoStreams.get(0).getUrl();
-                        }
-                    }
-
-                    final String finalDownloadUrl = directAudioUrl;
-                    final String titulo = info.getName();
-
-                    runOnUiThread(() -> {
-                        webView.evaluateJavascript("ocultarCargando();", null);
-                        if (!finalDownloadUrl.isEmpty()) {
-                            iniciarDescargaNativa(finalDownloadUrl, titulo);
-                        } else {
-                            mostrarToast("No se encontró ningún enlace de audio disponible.");
-                        }
-                    });
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    runOnUiThread(() -> {
-                        webView.evaluateJavascript("ocultarCargando();", null);
-                        mostrarToast("Error al extraer enlace: " + e.getLocalizedMessage());
-                    });
+                boolean exito = false;
+                for (String apiBase : instancias) {
+                    exito = obtenerAudioDesdePiped(apiBase + videoId);
+                    if (exito) break;
                 }
+
+                final boolean resultado = exito;
+                runOnUiThread(() -> {
+                    webView.evaluateJavascript("ocultarCargando();", null);
+                    if (!resultado) {
+                        mostrarToast("No se pudo obtener la pista de audio. Intenta de nuevo.");
+                    }
+                });
             });
         }
 
-        private String limpiarUrlYoutube(String url) {
+        private String extraerVideoId(String url) {
             if (url == null) return "";
             url = url.trim();
-            if (url.contains("youtu.be/") && url.contains("si=") && !url.contains("?")) {
-                url = url.replace("si=", "?si=");
+
+            if (url.contains("youtu.be/")) {
+                String[] parts = url.split("youtu.be/");
+                if (parts.length > 1) {
+                    return parts[1].split("\\?")[0].split("&")[0];
+                }
+            } else if (url.contains("v=")) {
+                String[] parts = url.split("v=");
+                if (parts.length > 1) {
+                    return parts[1].split("&")[0];
+                }
             }
-            if (url.contains("?si=")) {
-                url = url.split("\\?si=")[0];
-            } else if (url.contains("&si=")) {
-                url = url.split("&si=")[0];
+            return "";
+        }
+
+        private boolean obtenerAudioDesdePiped(String apiUrl) {
+            try {
+                URL url = new URL(apiUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        response.append(line);
+                    }
+                    in.close();
+
+                    JSONObject json = new JSONObject(response.toString());
+                    String titulo = json.optString("title", "TubeMusic");
+                    JSONArray audioStreams = json.optJSONArray("audioStreams");
+
+                    if (audioStreams != null && audioStreams.length() > 0) {
+                        String directAudioUrl = audioStreams.getJSONObject(0).getString("url");
+                        if (!directAudioUrl.isEmpty()) {
+                            iniciarDescargaNativa(directAudioUrl, titulo);
+                            return true;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-            return url;
+            return false;
         }
 
         private void iniciarDescargaNativa(String streamUrl, String titulo) {
-            String nombreLimpio = (titulo != null) ? titulo.replaceAll("[^a-zA-Z0-9.-]", "_") : "TubeMusic";
+            String nombreLimpio = titulo.replaceAll("[^a-zA-Z0-9.-]", "_");
             String nombreArchivo = nombreLimpio + ".m4a";
 
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(streamUrl));
-            request.setTitle(titulo != null ? titulo : "TubeMusic Audio");
+            request.setTitle(titulo);
             request.setDescription("Descargando audio...");
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, nombreArchivo);
@@ -219,51 +230,4 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-
-    public static class AppDownloader extends Downloader {
-        private static AppDownloader instance;
-
-        public static AppDownloader getInstance() {
-            if (instance == null) instance = new AppDownloader();
-            return instance;
-        }
-
-        @Override
-        public Response execute(Request request) throws ReCaptchaException, java.io.IOException {
-            URL url = new URL(request.url());
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod(request.httpMethod());
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
-
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36");
-            conn.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
-
-            for (Map.Entry<String, List<String>> header : request.headers().entrySet()) {
-                for (String value : header.getValue()) {
-                    conn.setRequestProperty(header.getKey(), value);
-                }
-            }
-
-            byte[] data = request.dataToSend();
-            if (data != null && data.length > 0) {
-                conn.setDoOutput(true);
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(data);
-                }
-            }
-
-            int responseCode = conn.getResponseCode();
-            BufferedReader in = new BufferedReader(new InputStreamReader(
-                    responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream()));
-            StringBuilder responseBody = new StringBuilder();
-            String line;
-            while ((line = in.readLine()) != null) {
-                responseBody.append(line).append("\n");
-            }
-            in.close();
-
-            return new Response(responseCode, conn.getResponseMessage(), conn.getHeaderFields(), responseBody.toString(), request.url());
-        }
-    }
-        }
+}
