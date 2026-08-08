@@ -100,6 +100,13 @@ public class MainActivity extends AppCompatActivity {
 
     public class WebAppInterface {
 
+        private void logDev(String mensaje) {
+            runOnUiThread(() -> {
+                String safeLog = mensaje.replace("'", "\\'").replace("\n", " ");
+                webView.evaluateJavascript("if(window.agregarLogDev) { window.agregarLogDev('" + safeLog + "'); }", null);
+            });
+        }
+
         @JavascriptInterface
         public void verAnuncioPorTiempo(final int segundosAgregar) {
             runOnUiThread(() -> {
@@ -110,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
                         loadRewardedAd();
                     });
                 } else {
-                    Toast.makeText(MainActivity.this, "El anuncio aún no ha cargado. Reintentando...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "El anuncio aún no ha cargado.", Toast.LENGTH_SHORT).show();
                     loadRewardedAd();
                 }
             });
@@ -118,9 +125,11 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void procesarDescarga(String rawUrl) {
+            logDev("🚀 [INICIO] Recibida URL: " + rawUrl);
             final String videoId = extraerVideoId(rawUrl);
 
             if (videoId.isEmpty()) {
+                logDev("❌ [ERROR] No se pudo extraer el ID del video.");
                 runOnUiThread(() -> {
                     webView.evaluateJavascript("ocultarCargando();", null);
                     mostrarToast("El enlace introducido no es válido.");
@@ -128,29 +137,36 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
+            logDev("📌 [INFO] ID de video extraído: " + videoId);
+
             runOnUiThread(() -> 
-                webView.evaluateJavascript("mostrarCargando('Obteniendo enlace de audio...');", null)
+                webView.evaluateJavascript("mostrarCargando('Conectando servidores...');", null)
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
-                // Instancias públicas de Piped
                 String[] instancias = {
                     "https://api.piped.video/streams/",
                     "https://pipedapi.kavin.rocks/streams/",
-                    "https://piped-api.garudalinux.org/streams/"
+                    "https://piped-api.garudalinux.org/streams/",
+                    "https://pipedapi.tokhmi.xyz/streams/"
                 };
 
                 boolean exito = false;
                 for (String apiBase : instancias) {
+                    logDev("🌐 [RED] Probando servidor: " + apiBase);
                     exito = obtenerAudioDesdePiped(apiBase + videoId);
-                    if (exito) break;
+                    if (exito) {
+                        logDev("✅ [ÉXITO] Extracción completada en este servidor.");
+                        break;
+                    }
                 }
 
                 final boolean resultado = exito;
                 runOnUiThread(() -> {
                     webView.evaluateJavascript("ocultarCargando();", null);
                     if (!resultado) {
-                        mostrarToast("No se pudo obtener la pista de audio. Intenta de nuevo.");
+                        logDev("❌ [ERROR FINAL] Ningún servidor devolvió pistas de audio.");
+                        mostrarToast("Todos los servidores fallaron. Ver la consola de desarrollo.");
                     }
                 });
             });
@@ -181,8 +197,12 @@ public class MainActivity extends AppCompatActivity {
                 conn.setRequestMethod("GET");
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(8000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android)");
 
-                if (conn.getResponseCode() == 200) {
+                int responseCode = conn.getResponseCode();
+                logDev("📡 [HTTP] " + apiUrl + " -> Código: " + responseCode);
+
+                if (responseCode == 200) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
@@ -197,32 +217,46 @@ public class MainActivity extends AppCompatActivity {
 
                     if (audioStreams != null && audioStreams.length() > 0) {
                         String directAudioUrl = audioStreams.getJSONObject(0).getString("url");
+                        logDev("🎵 [AUDIO] Stream encontrado: " + titulo);
                         if (!directAudioUrl.isEmpty()) {
                             iniciarDescargaNativa(directAudioUrl, titulo);
                             return true;
                         }
+                    } else {
+                        logDev("⚠️ [JSON] La respuesta no contiene la lista 'audioStreams'.");
                     }
+                } else {
+                    logDev("⚠️ [HTTP ERROR] Servidor respondió con error " + responseCode);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                logDev("💥 [EXCEPCIÓN] " + e.getClass().getSimpleName() + ": " + e.getLocalizedMessage());
             }
             return false;
         }
 
         private void iniciarDescargaNativa(String streamUrl, String titulo) {
-            String nombreLimpio = titulo.replaceAll("[^a-zA-Z0-9.-]", "_");
-            String nombreArchivo = nombreLimpio + ".m4a";
+            try {
+                String nombreLimpio = titulo.replaceAll("[^a-zA-Z0-9.-]", "_");
+                String nombreArchivo = nombreLimpio + ".m4a";
 
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(streamUrl));
-            request.setTitle(titulo);
-            request.setDescription("Descargando audio...");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, nombreArchivo);
+                logDev("📥 [DESCARGA] Enviando a DownloadManager: " + nombreArchivo);
 
-            DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-            if (manager != null) {
-                manager.enqueue(request);
-                mostrarToast("¡Descarga iniciada!");
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(streamUrl));
+                request.setTitle(titulo);
+                request.setDescription("Descargando audio...");
+                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, nombreArchivo);
+
+                DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                if (manager != null) {
+                    manager.enqueue(request);
+                    logDev("🎉 [OK] Descarga encolada correctamente.");
+                    mostrarToast("¡Descarga iniciada!");
+                } else {
+                    logDev("❌ [ERROR] DownloadManager es NULL.");
+                }
+            } catch (Exception e) {
+                logDev("💥 [EXCEPCIÓN DESCARGA] " + e.getLocalizedMessage());
             }
         }
 
@@ -230,4 +264,5 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-}
+                }
+                        
