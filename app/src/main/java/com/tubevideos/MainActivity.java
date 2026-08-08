@@ -32,6 +32,7 @@ import org.schabi.newpipe.extractor.downloader.Response;
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException;
 import org.schabi.newpipe.extractor.stream.AudioStream;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
+import org.schabi.newpipe.extractor.stream.Stream;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -52,17 +53,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Inicializar NewPipeExtractor con el cliente HTTP local
+        // Inicializar NewPipeExtractor con el downloader configurado
         NewPipe.init(AppDownloader.getInstance());
 
-        // Pedir permisos de almacenamiento al iniciar
         solicitarPermisosAlmacenamiento();
 
-        // Configuración AdMob
         MobileAds.initialize(this, initializationStatus -> {});
         loadRewardedAd();
 
-        // Configuración WebView
         webView = findViewById(R.id.webView);
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
@@ -149,14 +147,20 @@ public class MainActivity extends AppCompatActivity {
 
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
-                    // Extraer información usando la IP del teléfono
                     StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, videoUrl);
-                    List<AudioStream> audioStreams = info.getAudioStreams();
-
                     String directAudioUrl = "";
+
+                    // 1. Intentar obtener stream de solo audio
+                    List<AudioStream> audioStreams = info.getAudioStreams();
                     if (audioStreams != null && !audioStreams.isEmpty()) {
-                        // Obtener el primer stream de audio directo (.m4a)
                         directAudioUrl = audioStreams.get(0).getUrl();
+                    } 
+                    // 2. Respaldo: obtener el enlace de audio de los streams combinados
+                    else {
+                        List<Stream> mixedStreams = info.getStreams();
+                        if (mixedStreams != null && !mixedStreams.isEmpty()) {
+                            directAudioUrl = mixedStreams.get(0).getUrl();
+                        }
                     }
 
                     final String finalDownloadUrl = directAudioUrl;
@@ -167,7 +171,7 @@ public class MainActivity extends AppCompatActivity {
                         if (!finalDownloadUrl.isEmpty()) {
                             iniciarDescargaNativa(finalDownloadUrl, titulo);
                         } else {
-                            mostrarToast("No se encontró pista de audio disponible.");
+                            mostrarToast("No se encontró ningún enlace de audio disponible.");
                         }
                     });
 
@@ -217,7 +221,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Cliente HTTP interno para NewPipeExtractor
     public static class AppDownloader extends Downloader {
         private static AppDownloader instance;
 
@@ -231,8 +234,12 @@ public class MainActivity extends AppCompatActivity {
             URL url = new URL(request.url());
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod(request.httpMethod());
-            conn.setConnectTimeout(8000);
-            conn.setReadTimeout(8000);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+
+            // User-Agent real para evitar que YouTube bloquee las peticiones HTTP
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36");
+            conn.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
 
             for (Map.Entry<String, List<String>> header : request.headers().entrySet()) {
                 for (String value : header.getValue()) {
@@ -261,4 +268,4 @@ public class MainActivity extends AppCompatActivity {
             return new Response(responseCode, conn.getResponseMessage(), conn.getHeaderFields(), responseBody.toString(), request.url());
         }
     }
-                          }
+                }
