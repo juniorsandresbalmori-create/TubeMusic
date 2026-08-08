@@ -35,8 +35,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Dirección IP de tu servidor Debian en el puerto de FastAPI
-    private static final String SERVER_IP = "142.249.120.8";
+    // IP pública de tu VPS Debian asignada
+    private static final String SERVER_IP = "190.114.254.167";
     private static final String SERVER_PORT = "8000";
 
     private WebView webView;
@@ -232,5 +232,4 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-                            }
-                    
+            }
