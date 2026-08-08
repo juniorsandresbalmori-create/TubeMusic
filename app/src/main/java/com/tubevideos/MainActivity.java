@@ -140,37 +140,54 @@ public class MainActivity extends AppCompatActivity {
             logDev("📌 [INFO] ID de video extraído: " + videoId);
 
             runOnUiThread(() -> 
-                webView.evaluateJavascript("mostrarCargando('Conectando servidores...');", null)
+                webView.evaluateJavascript("mostrarCargando('Buscando servidor disponible...');", null)
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
-                // Servidores Piped actualizados
-                String[] instancias = {
-                    "https://pipedapi.adminforge.de/streams/",
-                    "https://api.piped.yt/streams/",
-                    "https://pipedapi.drgns.space/streams/",
-                    "https://piapi.ggtyler.dev/streams/",
-                    "https://api.piped.private.coffee/streams/",
-                    "https://pipedapi.ducks.party/streams/",
-                    "https://piped-api.codespace.cz/streams/"
+                boolean exito = false;
+
+                // 1. MOTOR INVIDIOUS
+                logDev("⚡ [MOTOR 1] Probando instancias Invidious...");
+                String[] instanciasInvidious = {
+                    "https://yewtu.be/api/v1/videos/",
+                    "https://inv.tux.pizza/api/v1/videos/",
+                    "https://invidious.nerdvpn.de/api/v1/videos/",
+                    "https://iv.melmac.space/api/v1/videos/"
                 };
 
-                boolean exito = false;
-                for (String apiBase : instancias) {
-                    logDev("🌐 [RED] Probando servidor: " + apiBase);
-                    exito = obtenerAudioDesdePiped(apiBase + videoId);
-                    if (exito) {
-                        logDev("✅ [ÉXITO] Extracción completada en este servidor.");
+                for (String invBase : instanciasInvidious) {
+                    logDev("🌐 [Invidious] Probando: " + invBase);
+                    if (obtenerAudioDesdeInvidious(invBase + videoId)) {
+                        exito = true;
                         break;
                     }
                 }
 
-                final boolean resultado = exito;
+                // 2. MOTOR PIPED (RESPALDO)
+                if (!exito) {
+                    logDev("⚡ [MOTOR 2] Probando instancias Piped...");
+                    String[] instanciasPiped = {
+                        "https://pipedapi.adminforge.de/streams/",
+                        "https://api.piped.yt/streams/",
+                        "https://pipedapi.drgns.space/streams/",
+                        "https://piapi.ggtyler.dev/streams/"
+                    };
+
+                    for (String apiBase : instanciasPiped) {
+                        logDev("🌐 [Piped] Probando: " + apiBase);
+                        if (obtenerAudioDesdePiped(apiBase + videoId)) {
+                            exito = true;
+                            break;
+                        }
+                    }
+                }
+
+                final boolean resultadoFinal = exito;
                 runOnUiThread(() -> {
                     webView.evaluateJavascript("ocultarCargando();", null);
-                    if (!resultado) {
-                        logDev("❌ [ERROR FINAL] Ningún servidor devolvió pistas de audio.");
-                        mostrarToast("Todos los servidores fallaron. Ver la consola de desarrollo.");
+                    if (!resultadoFinal) {
+                        logDev("❌ [ERROR FINAL] Los servidores disponibles no pudieron procesar el video.");
+                        mostrarToast("Error al extraer audio. Revisa la consola.");
                     }
                 });
             });
@@ -194,6 +211,50 @@ public class MainActivity extends AppCompatActivity {
             return "";
         }
 
+        private boolean obtenerAudioDesdeInvidious(String apiUrl) {
+            try {
+                URL url = new URL(apiUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+
+                int responseCode = conn.getResponseCode();
+                logDev("📡 [Invidious] Código HTTP: " + responseCode);
+
+                if (responseCode == 200) {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        response.append(line);
+                    }
+                    in.close();
+
+                    JSONObject json = new JSONObject(response.toString());
+                    String titulo = json.optString("title", "TubeMusic");
+                    JSONArray adaptiveFormats = json.optJSONArray("adaptiveFormats");
+
+                    if (adaptiveFormats != null) {
+                        for (int i = 0; i < adaptiveFormats.length(); i++) {
+                            JSONObject format = adaptiveFormats.getJSONObject(i);
+                            String type = format.optString("type", "");
+                            if (type.contains("audio/")) {
+                                String streamUrl = format.getString("url");
+                                logDev("🎵 [Invidious] Audio hallado: " + titulo);
+                                iniciarDescargaNativa(streamUrl, titulo);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logDev("💥 [Invidious Error] " + e.getLocalizedMessage());
+            }
+            return false;
+        }
+
         private boolean obtenerAudioDesdePiped(String apiUrl) {
             try {
                 URL url = new URL(apiUrl);
@@ -204,7 +265,7 @@ public class MainActivity extends AppCompatActivity {
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
 
                 int responseCode = conn.getResponseCode();
-                logDev("📡 [HTTP] Código de respuesta: " + responseCode);
+                logDev("📡 [Piped] Código HTTP: " + responseCode);
 
                 if (responseCode == 200) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -221,19 +282,15 @@ public class MainActivity extends AppCompatActivity {
 
                     if (audioStreams != null && audioStreams.length() > 0) {
                         String directAudioUrl = audioStreams.getJSONObject(0).getString("url");
-                        logDev("🎵 [AUDIO] Stream encontrado: " + titulo);
+                        logDev("🎵 [Piped] Audio hallado: " + titulo);
                         if (!directAudioUrl.isEmpty()) {
                             iniciarDescargaNativa(directAudioUrl, titulo);
                             return true;
                         }
-                    } else {
-                        logDev("⚠️ [JSON] La respuesta no contiene la lista 'audioStreams'.");
                     }
-                } else {
-                    logDev("⚠️ [HTTP ERROR] Servidor respondió con error " + responseCode);
                 }
             } catch (Exception e) {
-                logDev("💥 [EXCEPCIÓN] " + e.getClass().getSimpleName() + ": " + e.getLocalizedMessage());
+                logDev("💥 [Piped Error] " + e.getLocalizedMessage());
             }
             return false;
         }
@@ -254,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
                 DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                 if (manager != null) {
                     manager.enqueue(request);
-                    logDev("🎉 [OK] Descarga encolada correctamente.");
+                    logDev("🎉 [OK] Descarga iniciada con éxito.");
                     mostrarToast("¡Descarga iniciada!");
                 } else {
                     logDev("❌ [ERROR] DownloadManager es NULL.");
@@ -268,4 +325,4 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-                        }
+                       }
