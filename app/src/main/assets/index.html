@@ -1,173 +1,259 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TubeMusic</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background-color: #121212; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TubeMusic</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
 
-    .header-bar { background-color: #8b5cf6; height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; font-weight: bold; font-size: 18px; }
-    .icon-btn { background: none; border: none; color: #ffffff; font-size: 22px; cursor: pointer; }
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
 
-    .view-container { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 20px; }
-    .download-box { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 12px; }
+        /* Barra superior */
+        .header {
+            background-color: #7C3AED;
+            padding: 14px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
 
-    .search-input { width: 100%; padding: 14px 16px; background-color: #242424; border: 1px solid #333333; border-radius: 4px; color: #ffffff; font-size: 14px; outline: none; }
-    .search-input::placeholder { color: #71717a; }
+        .timer-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+        }
 
-    .download-btn { width: 100%; padding: 14px; background-color: #8b5cf6; color: #ffffff; border: none; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; }
-    .download-btn:disabled { background-color: #4c1d95; color: #888; cursor: not-allowed; }
+        .btn-ad {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
 
-    /* Barra de progreso morada animada */
-    .progress-box { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-    .progress-track { width: 100%; height: 8px; background-color: #242424; border-radius: 4px; overflow: hidden; }
-    .progress-fill { width: 100%; height: 100%; background-color: #8b5cf6; border-radius: 4px; animation: pulse 1.2s infinite ease-in-out; }
-    .progress-text { font-size: 12px; color: #a1a1aa; text-align: center; }
+        .btn-ad:active {
+            background: rgba(255, 255, 255, 0.4);
+        }
 
-    @keyframes pulse {
-      0% { opacity: 0.3; }
-      50% { opacity: 1; }
-      100% { opacity: 0.3; }
-    }
+        /* Contenido principal */
+        .container {
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex: 1;
+        }
 
-    .menu-container { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; gap: 12px; }
-    .menu-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+        .input-url {
+            width: 100%;
+            padding: 14px 16px;
+            background-color: #1E1E1E;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+        }
 
-    .pill-btn { width: 100%; max-width: 420px; padding: 14px 20px; background-color: #8b5cf6; color: #ffffff; border: none; border-radius: 25px; font-size: 12px; font-weight: bold; cursor: pointer; text-transform: uppercase; text-align: center; }
-    .pill-btn:active { background-color: #7c3aed; }
-    .volver-btn { background: none; border: none; color: #a1a1aa; font-size: 13px; font-weight: bold; margin-top: 15px; cursor: pointer; }
+        .input-url:focus {
+            border-color: #7C3AED;
+        }
 
-    .hidden { display: none !important; }
-  </style>
+        .btn-download {
+            width: 100%;
+            padding: 14px;
+            background-color: #5B21B6;
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 0.8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 4px 12px rgba(91, 33, 182, 0.3);
+        }
+
+        .btn-download:active {
+            background-color: #4C1D95;
+            transform: scale(0.99);
+        }
+
+        /* Indicador de Carga / Mensaje Flotante */
+        #loading-toast {
+            display: none;
+            margin-top: 10px;
+            text-align: center;
+            font-size: 13px;
+            color: #A78BFA;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        /* Panel Desarrollador */
+        .dev-panel {
+            margin-top: auto;
+            padding: 12px;
+            background: #000000;
+            border-top: 1px solid #222;
+        }
+
+        .dev-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .dev-title {
+            color: #00FFCC;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .btn-clear {
+            background: #222;
+            color: #AAA;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            cursor: pointer;
+        }
+
+        .console-log {
+            height: 140px;
+            overflow-y: auto;
+            background: #0A0A0A;
+            color: #33FF33;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 8px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border: 1px solid #1A1A1A;
+        }
+    </style>
 </head>
 <body>
 
-  <header class="header-bar">
-    <span id="timerText">00:04:24</span>
-    <button class="icon-btn" id="openMenuBtn">🔧</button>
-  </header>
-
-  <!-- Vista Principal -->
-  <main id="mainView" class="view-container">
-    <div class="download-box">
-      <input type="text" id="urlInput" class="search-input" placeholder="Pegar enlace o buscar..." />
-      <button id="downloadBtn" class="download-btn">DESCARGAR MP3</button>
-
-      <!-- Indicador de Carga Morado -->
-      <div id="progressBox" class="progress-box hidden">
-        <div class="progress-track">
-          <div class="progress-fill"></div>
+    <!-- Header con Tiempo y Botón para Recompensa -->
+    <div class="header">
+        <div class="timer-container">
+            <span>⏱️</span>
+            <span id="timer-display">00:03:59</span>
         </div>
-        <span id="progressText" class="progress-text">Procesando audio MP3...</span>
-      </div>
+        <button class="btn-ad" onclick="solicitarAnuncio()">+ Tiempo 📺</button>
     </div>
-  </main>
 
-  <!-- Menú Conseguir Tiempo -->
-  <main id="menuView" class="menu-container hidden">
-    <h2 class="menu-title">CONSEGUIR TIEMPO</h2>
+    <!-- Formulario de Descarga -->
+    <div class="container">
+        <input type="text" id="urlInput" class="input-url" placeholder="https://youtu.be/..." value="https://youtu.be/BSDNFKg0X7s?si=uvE5c1Mi-XuIliao">
+        <button class="btn-download" onclick="iniciarDescarga()">DESCARGAR MP3</button>
+        <div id="loading-toast">Extrayendo audio desde tu red...</div>
+    </div>
 
-    <button class="pill-btn" onclick="solicitarAnuncio(15)">+15 SEGUNDOS (ANUNCIO CORTO)</button>
-    <button class="pill-btn" onclick="solicitarAnuncio(30)">+30 SEGUNDOS (ANUNCIO MEDIO)</button>
-    <button class="pill-btn" onclick="solicitarAnuncio(300)">+5 MINUTOS (ANUNCIO LARGO)</button>
-    <button class="pill-btn" onclick="solicitarAnuncio(1800)">+30 MINUTOS (PASE EXTENDIDO)</button>
-    <button class="pill-btn" onclick="solicitarAnuncio(3600)">+1 HORA (PASE PREMIUM)</button>
+    <!-- Consola de Desarrollo integrada -->
+    <div class="dev-panel">
+        <div class="dev-header">
+            <span class="dev-title">💻 MODO DESARROLLADOR</span>
+            <button class="btn-clear" onclick="limpiarLogs()">Limpiar</button>
+        </div>
+        <div id="console-log" class="console-log">Esperando interacción...</div>
+    </div>
 
-    <button id="closeMenuBtn" class="volver-btn">VOLVER</button>
-  </main>
+    <script>
+        let segundosRestantes = 239;
 
-  <script>
-    let tiempoRestante = 264; 
-
-    const timerText = document.getElementById('timerText');
-    const mainView = document.getElementById('mainView');
-    const menuView = document.getElementById('menuView');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const progressBox = document.getElementById('progressBox');
-    const progressText = document.getElementById('progressText');
-
-    function actualizarRelojUI() {
-      const horas = Math.floor(tiempoRestante / 3600);
-      const minutos = Math.floor((tiempoRestante % 3600) / 60);
-      const segundos = tiempoRestante % 60;
-
-      const hStr = String(horas).padStart(2, '0');
-      const mStr = String(minutos).padStart(2, '0');
-      const sStr = String(segundos).padStart(2, '0');
-
-      timerText.textContent = `${hStr}:${mStr}:${sStr}`;
-
-      if (tiempoRestante <= 0) {
-        downloadBtn.disabled = true;
-        downloadBtn.textContent = "SIN TIEMPO DISPONIBLE";
-      } else if (!downloadBtn.dataset.cargando) {
-        downloadBtn.disabled = false;
-        downloadBtn.textContent = "DESCARGAR MP3";
-      }
-    }
-
-    setInterval(() => {
-      if (tiempoRestante > 0) {
-        tiempoRestante--;
-        actualizarRelojUI();
-      }
-    }, 1000);
-
-    function sumarTiempo(segundos) {
-      tiempoRestante += segundos;
-      actualizarRelojUI();
-    }
-
-    function solicitarAnuncio(segundos) {
-      if (window.AndroidBridge) {
-        window.AndroidBridge.verAnuncioPorTiempo(segundos);
-      } else {
-        sumarTiempo(segundos);
-      }
-    }
-
-    function mostrarCargando(mensaje) {
-      progressText.textContent = mensaje || "Procesando audio MP3...";
-      progressBox.classList.remove('hidden');
-      downloadBtn.disabled = true;
-      downloadBtn.dataset.cargando = "true";
-    }
-
-    function ocultarCargando() {
-      progressBox.classList.add('hidden');
-      delete downloadBtn.dataset.cargando;
-      actualizarRelojUI();
-    }
-
-    downloadBtn.addEventListener('click', () => {
-      const url = document.getElementById('urlInput').value.trim();
-      if (!url) {
-        alert("Ingresá un enlace válido.");
-        return;
-      }
-      if (tiempoRestante > 0) {
-        mostrarCargando("Iniciando procesamiento...");
-        if (window.AndroidBridge) {
-          window.AndroidBridge.procesarDescarga(url);
-        } else {
-          setTimeout(() => ocultarCargando(), 3000);
+        // Actualizar visualización del temporizador
+        function actualizarTimerUI() {
+            let m = Math.floor(segundosRestantes / 60).toString().padStart(2, '0');
+            let s = (segundosRestantes % 60).toString().padStart(2, '0');
+            document.getElementById('timer-display').innerText = `00:${m}:${s}`;
         }
-      }
-    });
 
-    document.getElementById('openMenuBtn').addEventListener('click', () => {
-      mainView.classList.add('hidden');
-      menuView.classList.remove('hidden');
-    });
+        // Invocado por MainActivity.java al ver anuncio
+        function sumarTiempo(segundos) {
+            segundosRestantes += segundos;
+            actualizarTimerUI();
+            agregarLogDev("⏱️ Tiempo acreditado: +" + segundos + "s");
+        }
 
-    document.getElementById('closeMenuBtn').addEventListener('click', () => {
-      menuView.classList.add('hidden');
-      mainView.classList.remove('hidden');
-    });
+        // Solicitar anuncio a través del bridge nativo
+        function solicitarAnuncio() {
+            if (window.AndroidBridge) {
+                window.AndroidBridge.verAnuncioPorTiempo(120);
+            } else {
+                agregarLogDev("⚠️ AndroidBridge no detectado (Web).");
+            }
+        }
 
-    actualizarRelojUI();
-  </script>
+        // Iniciar proceso de extracción
+        function iniciarDescarga() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                alert("Por favor introduce un enlace de YouTube.");
+                return;
+            }
+
+            if (window.AndroidBridge) {
+                window.AndroidBridge.procesarDescarga(url);
+            } else {
+                agregarLogDev("❌ Error: AndroidBridge no disponible.");
+            }
+        }
+
+        // Invocado desde MainActivity.java
+        function mostrarCargando(mensaje) {
+            const toast = document.getElementById('loading-toast');
+            toast.innerText = mensaje;
+            toast.style.display = 'block';
+        }
+
+        // Invocado desde MainActivity.java
+        function ocultarCargando() {
+            document.getElementById('loading-toast').style.display = 'none';
+        }
+
+        // Recibir logs en tiempo real desde Java
+        window.agregarLogDev = function(mensaje) {
+            const consoleBox = document.getElementById('console-log');
+            if (consoleBox) {
+                const time = new Date().toLocaleTimeString();
+                consoleBox.innerHTML += "[" + time + "] " + mensaje + "\n";
+                consoleBox.scrollTop = consoleBox.scrollHeight;
+            }
+        };
+
+        function limpiarLogs() {
+            document.getElementById('console-log').innerHTML = "Consola limpia.\n";
+        }
+    </script>
 </body>
 </html>
