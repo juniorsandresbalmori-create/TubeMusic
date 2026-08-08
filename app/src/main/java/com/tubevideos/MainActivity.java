@@ -24,16 +24,20 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
+
+    // Dirección IP de tu servidor Debian en el puerto de FastAPI
+    private static final String SERVER_IP = "142.249.120.8";
+    private static final String SERVER_PORT = "8000";
 
     private WebView webView;
     private RewardedAd rewardedAd;
@@ -125,174 +129,77 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void procesarDescarga(String rawUrl) {
-            logDev("🚀 [INICIO] Recibida URL: " + rawUrl);
-            final String videoId = extraerVideoId(rawUrl);
+            logDev("🚀 [INICIO] Solicitud recibida: " + rawUrl);
 
-            if (videoId.isEmpty()) {
-                logDev("❌ [ERROR] No se pudo extraer el ID del video.");
+            if (rawUrl == null || rawUrl.trim().isEmpty()) {
+                logDev("❌ [ERROR] La URL introducida está vacía.");
                 runOnUiThread(() -> {
                     webView.evaluateJavascript("ocultarCargando();", null);
-                    mostrarToast("El enlace introducido no es válido.");
+                    mostrarToast("Introduce un enlace válido.");
                 });
                 return;
             }
 
-            logDev("📌 [INFO] ID de video extraído: " + videoId);
-
             runOnUiThread(() -> 
-                webView.evaluateJavascript("mostrarCargando('Buscando servidor disponible...');", null)
+                webView.evaluateJavascript("mostrarCargando('Conectando a servidor propio...');", null)
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
                 boolean exito = false;
 
-                // 1. MOTOR INVIDIOUS
-                logDev("⚡ [MOTOR 1] Probando instancias Invidious...");
-                String[] instanciasInvidious = {
-                    "https://yewtu.be/api/v1/videos/",
-                    "https://inv.tux.pizza/api/v1/videos/",
-                    "https://invidious.nerdvpn.de/api/v1/videos/",
-                    "https://iv.melmac.space/api/v1/videos/"
-                };
+                try {
+                    String encodedUrl = URLEncoder.encode(rawUrl.trim(), "UTF-8");
+                    String apiUrl = "http://" + SERVER_IP + ":" + SERVER_PORT + "/extract?url=" + encodedUrl;
 
-                for (String invBase : instanciasInvidious) {
-                    logDev("🌐 [Invidious] Probando: " + invBase);
-                    if (obtenerAudioDesdeInvidious(invBase + videoId)) {
-                        exito = true;
-                        break;
-                    }
-                }
+                    logDev("🌐 [MI SERVIDOR] Consultando API en: " + apiUrl);
 
-                // 2. MOTOR PIPED (RESPALDO)
-                if (!exito) {
-                    logDev("⚡ [MOTOR 2] Probando instancias Piped...");
-                    String[] instanciasPiped = {
-                        "https://pipedapi.adminforge.de/streams/",
-                        "https://api.piped.yt/streams/",
-                        "https://pipedapi.drgns.space/streams/",
-                        "https://piapi.ggtyler.dev/streams/"
-                    };
+                    URL url = new URL(apiUrl);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(15000);
 
-                    for (String apiBase : instanciasPiped) {
-                        logDev("🌐 [Piped] Probando: " + apiBase);
-                        if (obtenerAudioDesdePiped(apiBase + videoId)) {
-                            exito = true;
-                            break;
+                    int responseCode = conn.getResponseCode();
+                    logDev("📡 [MI SERVIDOR] Código HTTP: " + responseCode);
+
+                    if (responseCode == 200) {
+                        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                        StringBuilder response = new StringBuilder();
+                        String line;
+                        while ((line = in.readLine()) != null) {
+                            response.append(line);
                         }
+                        in.close();
+
+                        JSONObject json = new JSONObject(response.toString());
+                        String status = json.optString("status", "");
+                        String titulo = json.optString("title", "Audio_YouTube");
+                        String streamUrl = json.optString("url", "");
+
+                        if ("ok".equals(status) && !streamUrl.isEmpty()) {
+                            logDev("🎵 [MI SERVIDOR] Audio extraído con éxito: " + titulo);
+                            iniciarDescargaNativa(streamUrl, titulo);
+                            exito = true;
+                        } else {
+                            logDev("❌ [ERROR SERVIDOR] Respuesta no válida o sin URL de audio.");
+                        }
+                    } else {
+                        logDev("❌ [ERROR SERVIDOR] El servidor devolvió código: " + responseCode);
                     }
+
+                } catch (Exception e) {
+                    logDev("💥 [EXCEPCIÓN CONEXIÓN] " + e.getLocalizedMessage());
                 }
 
                 final boolean resultadoFinal = exito;
                 runOnUiThread(() -> {
                     webView.evaluateJavascript("ocultarCargando();", null);
                     if (!resultadoFinal) {
-                        logDev("❌ [ERROR FINAL] Los servidores disponibles no pudieron procesar el video.");
-                        mostrarToast("Error al extraer audio. Revisa la consola.");
+                        logDev("❌ [ERROR FINAL] No se pudo obtener el audio desde el servidor.");
+                        mostrarToast("Error al procesar el enlace. Revisa la consola.");
                     }
                 });
             });
-        }
-
-        private String extraerVideoId(String url) {
-            if (url == null) return "";
-            url = url.trim();
-
-            if (url.contains("youtu.be/")) {
-                String[] parts = url.split("youtu.be/");
-                if (parts.length > 1) {
-                    return parts[1].split("\\?")[0].split("&")[0];
-                }
-            } else if (url.contains("v=")) {
-                String[] parts = url.split("v=");
-                if (parts.length > 1) {
-                    return parts[1].split("&")[0];
-                }
-            }
-            return "";
-        }
-
-        private boolean obtenerAudioDesdeInvidious(String apiUrl) {
-            try {
-                URL url = new URL(apiUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(8000);
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-
-                int responseCode = conn.getResponseCode();
-                logDev("📡 [Invidious] Código HTTP: " + responseCode);
-
-                if (responseCode == 200) {
-                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = in.readLine()) != null) {
-                        response.append(line);
-                    }
-                    in.close();
-
-                    JSONObject json = new JSONObject(response.toString());
-                    String titulo = json.optString("title", "TubeMusic");
-                    JSONArray adaptiveFormats = json.optJSONArray("adaptiveFormats");
-
-                    if (adaptiveFormats != null) {
-                        for (int i = 0; i < adaptiveFormats.length(); i++) {
-                            JSONObject format = adaptiveFormats.getJSONObject(i);
-                            String type = format.optString("type", "");
-                            if (type.contains("audio/")) {
-                                String streamUrl = format.getString("url");
-                                logDev("🎵 [Invidious] Audio hallado: " + titulo);
-                                iniciarDescargaNativa(streamUrl, titulo);
-                                return true;
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                logDev("💥 [Invidious Error] " + e.getLocalizedMessage());
-            }
-            return false;
-        }
-
-        private boolean obtenerAudioDesdePiped(String apiUrl) {
-            try {
-                URL url = new URL(apiUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(8000);
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-
-                int responseCode = conn.getResponseCode();
-                logDev("📡 [Piped] Código HTTP: " + responseCode);
-
-                if (responseCode == 200) {
-                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = in.readLine()) != null) {
-                        response.append(line);
-                    }
-                    in.close();
-
-                    JSONObject json = new JSONObject(response.toString());
-                    String titulo = json.optString("title", "TubeMusic");
-                    JSONArray audioStreams = json.optJSONArray("audioStreams");
-
-                    if (audioStreams != null && audioStreams.length() > 0) {
-                        String directAudioUrl = audioStreams.getJSONObject(0).getString("url");
-                        logDev("🎵 [Piped] Audio hallado: " + titulo);
-                        if (!directAudioUrl.isEmpty()) {
-                            iniciarDescargaNativa(directAudioUrl, titulo);
-                            return true;
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                logDev("💥 [Piped Error] " + e.getLocalizedMessage());
-            }
-            return false;
         }
 
         private void iniciarDescargaNativa(String streamUrl, String titulo) {
@@ -311,10 +218,10 @@ public class MainActivity extends AppCompatActivity {
                 DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                 if (manager != null) {
                     manager.enqueue(request);
-                    logDev("🎉 [OK] Descarga iniciada con éxito.");
+                    logDev("🎉 [OK] Descarga iniciada correctamente.");
                     mostrarToast("¡Descarga iniciada!");
                 } else {
-                    logDev("❌ [ERROR] DownloadManager es NULL.");
+                    logDev("❌ [ERROR] DownloadManager no está disponible en el sistema.");
                 }
             } catch (Exception e) {
                 logDev("💥 [EXCEPCIÓN DESCARGA] " + e.getLocalizedMessage());
@@ -325,4 +232,5 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-                       }
+                            }
+                    
