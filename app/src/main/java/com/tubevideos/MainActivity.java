@@ -144,11 +144,15 @@ public class MainActivity extends AppCompatActivity {
             );
 
             Executors.newSingleThreadExecutor().execute(() -> {
+                // Servidores Piped actualizados
                 String[] instancias = {
-                    "https://api.piped.video/streams/",
-                    "https://pipedapi.kavin.rocks/streams/",
-                    "https://piped-api.garudalinux.org/streams/",
-                    "https://pipedapi.tokhmi.xyz/streams/"
+                    "https://pipedapi.adminforge.de/streams/",
+                    "https://api.piped.yt/streams/",
+                    "https://pipedapi.drgns.space/streams/",
+                    "https://piapi.ggtyler.dev/streams/",
+                    "https://api.piped.private.coffee/streams/",
+                    "https://pipedapi.ducks.party/streams/",
+                    "https://piped-api.codespace.cz/streams/"
                 };
 
                 boolean exito = false;
@@ -197,10 +201,10 @@ public class MainActivity extends AppCompatActivity {
                 conn.setRequestMethod("GET");
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(8000);
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android)");
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
 
                 int responseCode = conn.getResponseCode();
-                logDev("📡 [HTTP] " + apiUrl + " -> Código: " + responseCode);
+                logDev("📡 [HTTP] Código de respuesta: " + responseCode);
 
                 if (responseCode == 200) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -264,4 +268,4 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
         }
     }
-        }
+                        }
