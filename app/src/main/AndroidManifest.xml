@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/app/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.tubevideos">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permisos de red para comunicar con el VPS HTTP -->
     <uses-permission android:name="android.permission.INTERNET" />
