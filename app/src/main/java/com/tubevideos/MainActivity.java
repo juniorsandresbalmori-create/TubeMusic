@@ -157,12 +157,42 @@ public class MainActivity extends AppCompatActivity {
 
             DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             if (manager != null) {
-                manager.enqueue(request);
-                enviarLogDev("📥 Descarga encolada en el sistema Android.");
+                long downloadId = manager.enqueue(request);
+                enviarLogDev("📥 Descarga encolada. Supervisando...");
+                
+                // Hilo vigilante para atrapar el error exacto y mandarlo a tu consola HTML
+                new Thread(() -> {
+                    boolean supervisando = true;
+                    while (supervisando) {
+                        DownloadManager.Query q = new DownloadManager.Query();
+                        q.setFilterById(downloadId);
+                        android.database.Cursor cursor = manager.query(q);
+                        
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                            int reasonIndex = cursor.getColumnIndex(DownloadManager.COLUMN_REASON);
+                            
+                            if (statusIndex >= 0 && reasonIndex >= 0) {
+                                int status = cursor.getInt(statusIndex);
+                                if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                                    runOnUiThread(() -> enviarLogDev("✅ ¡Descarga completada con éxito!"));
+                                    supervisando = false;
+                                } else if (status == DownloadManager.STATUS_FAILED) {
+                                    int reason = cursor.getInt(reasonIndex);
+                                    runOnUiThread(() -> enviarLogDev("❌ El sistema bloqueó la descarga. Código de error: " + reason));
+                                    supervisando = false;
+                                }
+                            }
+                        }
+                        if (cursor != null) cursor.close();
+                        
+                        try { Thread.sleep(1000); } catch (Exception e) { /* ignorar */ }
+                    }
+                }).start();
             }
         } catch (Exception e) {
             Log.e("TubeMusic", "Error DownloadManager", e);
-            enviarLogDev("❌ Error fatal en DownloadManager");
+            enviarLogDev("❌ Error fatal interno: " + e.getMessage());
         }
     }
-}
+
