@@ -195,4 +195,4 @@ public class MainActivity extends AppCompatActivity {
             enviarLogDev("❌ Error fatal interno: " + e.getMessage());
         }
     }
-
+}
