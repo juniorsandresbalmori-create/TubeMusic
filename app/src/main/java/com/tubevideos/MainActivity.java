@@ -1,28 +1,8 @@
-package com.tubevideos;
-
-import android.Manifest;
 import android.app.DownloadManager;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
-import android.os.Bundle;
 import android.os.Environment;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.Toast;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.LoadAdError;
-import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.rewarded.RewardedAd;
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
+import android.util.Log;
 
 import org.json.JSONObject;
 
@@ -31,207 +11,99 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.util.concurrent.Executors;
 
-public class MainActivity extends AppCompatActivity {
+// ... dentro de tu clase MainActivity ...
 
-    // Servidor VPS Debian
-    private static final String SERVER_IP = "190.114.254.167";
-    private static final String SERVER_PORT = "8000";
+/**
+ * 1. Realiza la petición HTTP a tu VPS para extraer los datos del video (Título y URL de descarga)
+ */
+private void consultarApiYDescargar(String youtubeUrlString) {
+    // Las peticiones de red NUNCA deben ir en el hilo principal (UI Thread)
+    new Thread(() -> {
+        try {
+            // Codificar la URL de YouTube de forma segura para la consulta GET
+            String encodedUrl = URLEncoder.encode(youtubeUrlString, "UTF-8");
+            String apiEndpoint = "http://190.114.254.167:8000/extract?url=" + encodedUrl;
 
-    private WebView webView;
-    private RewardedAd rewardedAd;
+            Log.d("TubeMusic", "Consultando API en: " + apiEndpoint);
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+            URL url = new URL(apiEndpoint);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(15000);
 
-        solicitarPermisosAlmacenamiento();
-
-        MobileAds.initialize(this, initializationStatus -> {});
-        loadRewardedAd();
-
-        webView = findViewById(R.id.webView);
-        WebSettings webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true);
-
-        webView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
-        webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("file:///android_asset/index.html");
-    }
-
-    private void solicitarPermisosAlmacenamiento() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_MEDIA_AUDIO}, 100);
-            }
-        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE, 
-                    Manifest.permission.READ_EXTERNAL_STORAGE
-                }, 100);
-            }
-        }
-    }
-
-    private void loadRewardedAd() {
-        AdRequest adRequest = new AdRequest.Builder().build();
-        RewardedAd.load(this, "ca-app-pub-3940256099942544/5224354917",
-            adRequest, new RewardedAdLoadCallback() {
-                @Override
-                public void onAdFailedToLoad(@NonNull LoadAdError loadAdError) {
-                    rewardedAd = null;
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                // Leer la respuesta JSON enviada por tu servidor Python
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
                 }
+                reader.close();
 
-                @Override
-                public void onAdLoaded(@NonNull RewardedAd ad) {
-                    rewardedAd = ad;
-                }
-            });
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
-    }
-
-    public class WebAppInterface {
-
-        private void logDev(String mensaje) {
-            runOnUiThread(() -> {
-                String safeLog = mensaje.replace("'", "\\'").replace("\n", " ");
-                webView.evaluateJavascript("if(window.agregarLogDev) { window.agregarLogDev('" + safeLog + "'); }", null);
-            });
-        }
-
-        @JavascriptInterface
-        public void verAnuncioPorTiempo(final int segundosAgregar) {
-            runOnUiThread(() -> {
-                if (rewardedAd != null) {
-                    rewardedAd.show(MainActivity.this, rewardItem -> {
-                        Toast.makeText(MainActivity.this, "¡Tiempo acreditado!", Toast.LENGTH_SHORT).show();
-                        webView.evaluateJavascript("sumarTiempo(" + segundosAgregar + ");", null);
-                        loadRewardedAd();
-                    });
-                } else {
-                    Toast.makeText(MainActivity.this, "El anuncio aún no ha cargado.", Toast.LENGTH_SHORT).show();
-                    loadRewardedAd();
-                }
-            });
-        }
-
-        @JavascriptInterface
-        public void procesarDescarga(String rawUrl) {
-            logDev("🚀 [INICIO] Solicitud recibida: " + rawUrl);
-
-            if (rawUrl == null || rawUrl.trim().isEmpty()) {
-                logDev("❌ [ERROR] La URL introducida está vacía.");
-                runOnUiThread(() -> {
-                    webView.evaluateJavascript("ocultarCargando();", null);
-                    mostrarToast("Introduce un enlace válido.");
-                });
-                return;
-            }
-
-            runOnUiThread(() -> 
-                webView.evaluateJavascript("mostrarCargando('Conectando a servidor propio...');", null)
-            );
-
-            Executors.newSingleThreadExecutor().execute(() -> {
-                boolean exito = false;
-
-                try {
-                    String encodedUrl = URLEncoder.encode(rawUrl.trim(), "UTF-8");
-                    String apiUrl = "http://" + SERVER_IP + ":" + SERVER_PORT + "/extract?url=" + encodedUrl;
-
-                    logDev("🌐 [MI SERVIDOR] Consultando API en: " + apiUrl);
-
-                    URL url = new URL(apiUrl);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("GET");
-                    conn.setConnectTimeout(15000);
-                    conn.setReadTimeout(15000);
-
-                    int responseCode = conn.getResponseCode();
-                    logDev("📡 [MI SERVIDOR] Código HTTP: " + responseCode);
-
-                    if (responseCode == 200) {
-                        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                        StringBuilder response = new StringBuilder();
-                        String line;
-                        while ((line = in.readLine()) != null) {
-                            response.append(line);
-                        }
-                        in.close();
-
-                        // Parseo compatible con respuestas en español e inglés
-                        JSONObject json = new JSONObject(response.toString());
-                        String status = json.has("estado") ? json.optString("estado") : json.optString("status", "");
-                        String titulo = json.has("titulo") ? json.optString("titulo") : json.optString("title", "Audio_YouTube");
-                        String streamUrl = json.optString("url", "");
-
-                        if ("ok".equalsIgnoreCase(status) && !streamUrl.isEmpty()) {
-                            logDev("🎵 [MI SERVIDOR] Audio extraído con éxito: " + titulo);
-                            iniciarDescargaNativa(streamUrl, titulo);
-                            exito = true;
-                        } else {
-                            logDev("❌ [ERROR SERVIDOR] Respuesta no válida o sin URL de audio.");
-                        }
-                    } else {
-                        logDev("❌ [ERROR SERVIDOR] El servidor devolvió código: " + responseCode);
-                    }
-
-                } catch (Exception e) {
-                    logDev("💥 [EXCEPCIÓN CONEXIÓN] " + e.getLocalizedMessage());
-                }
-
-                final boolean resultadoFinal = exito;
-                runOnUiThread(() -> {
-                    webView.evaluateJavascript("ocultarCargando();", null);
-                    if (!resultadoFinal) {
-                        logDev("❌ [ERROR FINAL] No se pudo obtener el audio desde el servidor.");
-                        mostrarToast("Error al procesar el enlace. Revisa la consola.");
-                    }
-                });
-            });
-        }
-
-        private void iniciarDescargaNativa(String streamUrl, String titulo) {
-            try {
-                String nombreLimpio = titulo.replaceAll("[^a-zA-Z0-9.-]", "_");
-                String nombreArchivo = nombreLimpio + ".m4a";
-
-                logDev("📥 [DESCARGA] Enviando a DownloadManager: " + nombreArchivo);
-
-                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(streamUrl));
-                request.setTitle(titulo);
-                request.setDescription("Descargando audio...");
-                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, nombreArchivo);
-
-                DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                if (manager != null) {
-                    manager.enqueue(request);
-                    logDev("🎉 [OK] Descarga iniciada correctamente.");
-                    mostrarToast("¡Descarga iniciada!");
-                } else {
-                    logDev("❌ [ERROR] DownloadManager no está disponible en el sistema.");
-                }
-            } catch (Exception e) {
-                logDev("💥 [EXCEPCIÓN DESCARGA] " + e.getLocalizedMessage());
-            }
-        }
-
-        private void mostrarToast(String mensaje) {
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_SHORT).show());
-        }
-    }
-                                                  }
+                // Parsear el JSON obtenido
+                JSONObject jsonResponse = new JSONObject(response.toString());
                 
+                // Extraer el título y el enlace directo de audio 
+                // (Asegúrate de que en tu Python las claves sean "title" y "url")
+                String title = jsonResponse.optString("title", "audio_descargado");
+                String audioDownloadUrl = jsonResponse.optString("url", "");
+
+                if (!audioDownloadUrl.isEmpty()) {
+                    // Limpiar caracteres extraños del título para evitar errores al guardar el archivo
+                    String safeFileName = title.replaceAll("[^a-zA-Z0-9.-]", "_") + ".m4a";
+
+                    // Volver al hilo principal para invocar el DownloadManager del sistema
+                    runOnUiThread(() -> iniciarDescargaConManager(audioDownloadUrl, safeFileName));
+                } else {
+                    Log.e("TubeMusic", "Error: El JSON recibido no contiene la URL de descarga.");
+                }
+            } else {
+                Log.e("TubeMusic", "Error HTTP en el servidor: " + responseCode);
+            }
+            connection.disconnect();
+
+        } catch (Exception e) {
+            Log.e("TubeMusic", "Excepción al conectar con el servidor", e);
+        }
+    }).start();
+}
+
+/**
+ * 2. Configura el DownloadManager incluyendo el User-Agent clave para evitar el bloqueo de YouTube
+ */
+private void iniciarDescargaConManager(String audioUrl, String fileName) {
+    try {
+        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(audioUrl));
+
+        // Configuración básica de la notificación
+        request.setTitle(fileName);
+        request.setDescription("Descargando música con TubeMusic...");
+        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+
+        // Guardar directamente en la carpeta pública de Descargas del dispositivo
+        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+
+        // =========================================================================
+        // 🔑 CLAVE CRUCIAL: Engaña a YouTube enviando un User-Agent de navegador web
+        // =========================================================================
+        request.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+        // Permitir descarga tanto por Wi-Fi como por Red Móvil
+        request.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI | DownloadManager.Request.NETWORK_MOBILE);
+        request.setAllowedOverRoaming(true);
+
+        // Encolar la descarga en el sistema Android
+        DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+        if (manager != null) {
+            manager.enqueue(request);
+            Log.d("TubeMusic", "🎉 [OK] Descarga enviada a DownloadManager: " + fileName);
+        }
+    } catch (Exception e) {
+        Log.e("TubeMusic", "Error al iniciar DownloadManager", e);
+    }
+}
+    
