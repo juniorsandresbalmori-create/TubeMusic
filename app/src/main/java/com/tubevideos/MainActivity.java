@@ -6,10 +6,11 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ImageView;
-import android.widget.TextView;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -23,39 +24,70 @@ import java.net.URLEncoder;
 
 public class MainActivity extends AppCompatActivity {
 
-    private EditText etYoutubeUrl;
-    private Button btnDownload;
-    private TextView tvTimer;
-    private ImageView btnSettings;
+    private WebView webView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        etYoutubeUrl = findViewById(R.id.etYoutubeUrl);
-        btnDownload = findViewById(R.id.btnDownload);
-        tvTimer = findViewById(R.id.tvTimer);
-        btnSettings = findViewById(R.id.btnSettings);
+        webView = findViewById(R.id.webView);
 
-        // Botón de descargar MP3
-        btnDownload.setOnClickListener(v -> {
-            String url = etYoutubeUrl.getText().toString().trim();
-            if (!url.isEmpty()) {
-                // Mensaje idéntico al de tu captura de pantalla
-                Toast.makeText(this, "Iniciando descarga en segundo plano...", Toast.LENGTH_SHORT).show();
-                btnDownload.setEnabled(false);
-                consultarApiYDescargar(url);
-            } else {
-                Toast.makeText(this, "Ingresa un enlace", Toast.LENGTH_SHORT).show();
-            }
-        });
+        // Configurar WebView
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
 
-        // Evento para el ícono de la llave inglesa (Para abrir tu menú de tiempo)
-        btnSettings.setOnClickListener(v -> {
-            // Aquí puedes lanzar el Intent hacia tu actividad de "Conseguir Tiempo"
-            Toast.makeText(this, "Abrir menú de tiempo...", Toast.LENGTH_SHORT).show();
-        });
+        webView.setWebViewClient(new WebViewClient());
+        webView.setWebChromeClient(new WebChromeClient());
+
+        // Conectar el JavascriptInterface con el nombre exacto que usaste en HTML
+        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
+
+        // Cargar tu index.html desde la carpeta assets (app/src/main/assets/index.html)
+        webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    // Clase que hace de puente entre Javascript y Java
+    public class WebAppInterface {
+        Context mContext;
+
+        WebAppInterface(Context c) {
+            mContext = c;
+        }
+
+        // Método invocado desde JS: window.AndroidBridge.procesarDescarga(url)
+        @JavascriptInterface
+        public void procesarDescarga(String url) {
+            runOnUiThread(() -> {
+                enviarComandoJS("mostrarCargando('Conectando al VPS...')");
+                enviarLogDev("Iniciando conexión con VPS para: " + url);
+            });
+            consultarApiYDescargar(url);
+        }
+
+        // Método invocado desde JS: window.AndroidBridge.verAnuncioPorTiempo(segundos)
+        @JavascriptInterface
+        public void verAnuncioPorTiempo(int segundos) {
+            runOnUiThread(() -> {
+                enviarLogDev("Preparando anuncio de AdMob...");
+                Toast.makeText(mContext, "Lógica de AdMob pendiente", Toast.LENGTH_SHORT).show();
+                
+                // Simular que el anuncio se vio con éxito y devolver el tiempo al JS
+                enviarComandoJS("sumarTiempo(" + segundos + ")");
+            });
+        }
+    }
+
+    // Comunicación desde Java hacia la consola JS de tu diseño
+    private void enviarComandoJS(String comando) {
+        if (webView != null) {
+            webView.evaluateJavascript("javascript:" + comando, null);
+        }
+    }
+
+    private void enviarLogDev(String mensaje) {
+        runOnUiThread(() -> enviarComandoJS("agregarLogDev('" + mensaje + "')"));
     }
 
     private void consultarApiYDescargar(String youtubeUrlString) {
@@ -88,18 +120,24 @@ public class MainActivity extends AppCompatActivity {
                         String safeFileName = title.replaceAll("[^a-zA-Z0-9.-]", "_") + ".m4a";
                         
                         runOnUiThread(() -> {
+                            enviarLogDev("¡URL de audio extraída con éxito!");
                             iniciarDescargaConManager(audioDownloadUrl, safeFileName);
-                            etYoutubeUrl.setText(""); 
-                            btnDownload.setEnabled(true);
+                            enviarComandoJS("ocultarCargando()");
                         });
                     }
                 } else {
-                    runOnUiThread(() -> btnDownload.setEnabled(true));
+                    runOnUiThread(() -> {
+                        enviarLogDev("❌ Error en el VPS HTTP: " + responseCode);
+                        enviarComandoJS("ocultarCargando()");
+                    });
                 }
                 connection.disconnect();
             } catch (Exception e) {
                 Log.e("TubeMusic", "Error de red", e);
-                runOnUiThread(() -> btnDownload.setEnabled(true));
+                runOnUiThread(() -> {
+                    enviarLogDev("❌ Error de conexión con el servidor");
+                    enviarComandoJS("ocultarCargando()");
+                });
             }
         }).start();
     }
@@ -111,6 +149,8 @@ public class MainActivity extends AppCompatActivity {
             request.setDescription("Descargando MP3...");
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+            
+            // User-Agent obligatorio
             request.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             request.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI | DownloadManager.Request.NETWORK_MOBILE);
             request.setAllowedOverRoaming(true);
@@ -118,9 +158,11 @@ public class MainActivity extends AppCompatActivity {
             DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             if (manager != null) {
                 manager.enqueue(request);
+                enviarLogDev("📥 Descarga encolada en el sistema Android.");
             }
         } catch (Exception e) {
             Log.e("TubeMusic", "Error DownloadManager", e);
+            enviarLogDev("❌ Error fatal en DownloadManager");
         }
     }
-                        }
+}
