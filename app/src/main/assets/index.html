@@ -1,221 +1,65 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TubeMusic</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-
-        /* Barra superior */
-        .header {
-            background-color: #7C3AED;
-            padding: 14px 18px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
-
-        .timer-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: bold;
-            font-size: 16px;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-ad {
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .btn-ad:active {
-            background: rgba(255, 255, 255, 0.4);
-        }
-
-        /* Contenido principal */
-        .container {
-            padding: 24px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            flex: 1;
-        }
-
-        .input-url {
-            width: 100%;
-            padding: 14px 16px;
-            background-color: #1E1E1E;
-            border: 1px solid #333;
-            border-radius: 8px;
-            color: #ffffff;
-            font-size: 14px;
-            outline: none;
-        }
-
-        .input-url:focus {
-            border-color: #7C3AED;
-        }
-
-        .btn-download {
-            width: 100%;
-            padding: 14px;
-            background-color: #5B21B6;
-            border: none;
-            border-radius: 8px;
-            color: #ffffff;
-            font-weight: bold;
-            font-size: 14px;
-            letter-spacing: 0.8px;
-            cursor: pointer;
-            text-transform: uppercase;
-            box-shadow: 0 4px 12px rgba(91, 33, 182, 0.3);
-        }
-
-        .btn-download:active {
-            background-color: #4C1D95;
-            transform: scale(0.99);
-        }
-
-        /* Indicador de Carga / Mensaje Flotante */
-        #loading-toast {
-            display: none;
-            margin-top: 10px;
-            text-align: center;
-            font-size: 13px;
-            color: #A78BFA;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
-        }
-
-        /* Panel Desarrollador */
-        .dev-panel {
-            margin-top: auto;
-            padding: 12px;
-            background: #000000;
-            border-top: 1px solid #222;
-        }
-
-        .dev-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .dev-title {
-            color: #00FFCC;
-            font-weight: bold;
-            font-family: monospace;
-            font-size: 12px;
-        }
-
-        .btn-clear {
-            background: #222;
-            color: #AAA;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            cursor: pointer;
-        }
-
-        .console-log {
-            height: 140px;
-            overflow-y: auto;
-            background: #0A0A0A;
-            color: #33FF33;
-            font-family: monospace;
-            font-size: 11px;
-            padding: 8px;
-            border-radius: 4px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            border: 1px solid #1A1A1A;
-        }
-    </style>
-</head>
-<body>
-
-    <!-- Header con Tiempo y Botón para Recompensa -->
-    <div class="header">
-        <div class="timer-container">
-            <span>⏱️</span>
-            <span id="timer-display">00:03:59</span>
-        </div>
-        <button class="btn-ad" onclick="solicitarAnuncio()">+ Tiempo 📺</button>
-    </div>
-
-    <!-- Formulario de Descarga -->
-    <div class="container">
-        <input type="text" id="urlInput" class="input-url" placeholder="https://youtu.be/..." value="https://youtu.be/BSDNFKg0X7s?si=uvE5c1Mi-XuIliao">
-        <button class="btn-download" onclick="iniciarDescarga()">DESCARGAR MP3</button>
-        <div id="loading-toast">Extrayendo audio desde tu red...</div>
-    </div>
-
-    <!-- Consola de Desarrollo integrada -->
-    <div class="dev-panel">
-        <div class="dev-header">
-            <span class="dev-title">💻 MODO DESARROLLADOR</span>
-            <button class="btn-clear" onclick="limpiarLogs()">Limpiar</button>
-        </div>
-        <div id="console-log" class="console-log">Esperando interacción...</div>
-    </div>
-
     <script>
-        let segundosRestantes = 239;
+        // 1. Inicializamos leyendo la caché. Si no hay nada, arranca en 0 (nada de 5 min gratis).
+        let tiempoRestante = localStorage.getItem('tiempo_tubemusic');
+        tiempoRestante = tiempoRestante !== null ? parseInt(tiempoRestante) : 0;
+        
+        let temporizador = null;
 
-        // Actualizar visualización del temporizador
+        // 2. Actualizar visualización del temporizador (Ahora soporta Horas)
         function actualizarTimerUI() {
-            let m = Math.floor(segundosRestantes / 60).toString().padStart(2, '0');
-            let s = (segundosRestantes % 60).toString().padStart(2, '0');
-            document.getElementById('timer-display').innerText = `00:${m}:${s}`;
+            let h = Math.floor(tiempoRestante / 3600).toString().padStart(2, '0');
+            let m = Math.floor((tiempoRestante % 3600) / 60).toString().padStart(2, '0');
+            let s = (tiempoRestante % 60).toString().padStart(2, '0');
+            
+            // Muestra HH:MM:SS. Si quieres ocultar las horas cuando es 0, puedes meter un if aquí.
+            document.getElementById('timer-display').innerText = `${h}:${m}:${s}`;
         }
 
-        // Invocado por MainActivity.java al ver anuncio
-        function sumarTiempo(segundos) {
-            segundosRestantes += segundos;
+        // 3. El motor del contador regresivo
+        function iniciarReloj() {
+            if (temporizador) clearInterval(temporizador); // Evitamos bucles de múltiples relojes corriendo
+            
+            temporizador = setInterval(() => {
+                if (tiempoRestante > 0) {
+                    tiempoRestante--;
+                    localStorage.setItem('tiempo_tubemusic', tiempoRestante);
+                    actualizarTimerUI();
+                } else {
+                    clearInterval(temporizador);
+                    // Opcional: Aquí podrías deshabilitar el botón de descarga si el tiempo llega a 0
+                }
+            }, 1000);
+        }
+
+        // 4. Invocado por MainActivity.java cuando termina el anuncio con éxito
+        // ¡IMPORTANTE!: Esta función ya NO debe llamar a solicitarAnuncio para evitar el bucle infinito.
+        window.sumarTiempo = function(segundos) {
+            tiempoRestante += parseInt(segundos);
+            localStorage.setItem('tiempo_tubemusic', tiempoRestante);
             actualizarTimerUI();
+            iniciarReloj(); // Arrancamos el motor por si estaba frenado en 0
             agregarLogDev("⏱️ Tiempo acreditado: +" + segundos + "s");
         }
 
-        // Solicitar anuncio a través del bridge nativo
-        function solicitarAnuncio() {
+        // 5. Solicitar anuncio a través del bridge nativo (Recibe el parámetro de los botones)
+        function solicitarAnuncio(segundosPedidos) {
             if (window.AndroidBridge) {
-                window.AndroidBridge.verAnuncioPorTiempo(120);
+                // Le pasas a Java cuántos segundos se pidieron para que cargue el ID de AdMob correspondiente
+                window.AndroidBridge.verAnuncioPorTiempo(segundosPedidos);
             } else {
-                agregarLogDev("⚠️ AndroidBridge no detectado (Web).");
+                agregarLogDev("⚠️ AndroidBridge no detectado. Simulando en Web.");
+                // Esto es solo para que puedas probar la UI en la PC sin depender de Java
+                window.sumarTiempo(segundosPedidos); 
             }
         }
 
-        // Iniciar proceso de extracción
+        // 6. Iniciar proceso de extracción
         function iniciarDescarga() {
+            if (tiempoRestante <= 0) {
+                alert("¡No tienes tiempo! Mira un anuncio para recargar.");
+                return;
+            }
+
             const url = document.getElementById('urlInput').value.trim();
             if (!url) {
                 alert("Por favor introduce un enlace de YouTube.");
@@ -229,19 +73,17 @@
             }
         }
 
-        // Invocado desde MainActivity.java
+        // Utilidades de Interfaz y Logs
         function mostrarCargando(mensaje) {
             const toast = document.getElementById('loading-toast');
             toast.innerText = mensaje;
             toast.style.display = 'block';
         }
 
-        // Invocado desde MainActivity.java
         function ocultarCargando() {
             document.getElementById('loading-toast').style.display = 'none';
         }
 
-        // Recibir logs en tiempo real desde Java
         window.agregarLogDev = function(mensaje) {
             const consoleBox = document.getElementById('console-log');
             if (consoleBox) {
@@ -254,6 +96,13 @@
         function limpiarLogs() {
             document.getElementById('console-log').innerHTML = "Consola limpia.\n";
         }
-    </script>
-</body>
-</html>
+
+        // 7. Arrancar todo al cargar la vista
+        window.onload = function() {
+            actualizarTimerUI();
+            if (tiempoRestante > 0) {
+                iniciarReloj();
+            }
+        };
+            </script>
+            
