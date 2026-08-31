@@ -1,108 +1,12 @@
-    <script>
-        // 1. Inicializamos leyendo la caché. Si no hay nada, arranca en 0 (nada de 5 min gratis).
-        let tiempoRestante = localStorage.getItem('tiempo_tubemusic');
-        tiempoRestante = tiempoRestante !== null ? parseInt(tiempoRestante) : 0;
-        
-        let temporizador = null;
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba TubeMusic</title>
+</head>
+<body style="background-color: #2c2c2c; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+    
+    <h1>¡El WebView funciona, Andy!</h1>
 
-        // 2. Actualizar visualización del temporizador (Ahora soporta Horas)
-        function actualizarTimerUI() {
-            let h = Math.floor(tiempoRestante / 3600).toString().padStart(2, '0');
-            let m = Math.floor((tiempoRestante % 3600) / 60).toString().padStart(2, '0');
-            let s = (tiempoRestante % 60).toString().padStart(2, '0');
-            
-            // Muestra HH:MM:SS. Si quieres ocultar las horas cuando es 0, puedes meter un if aquí.
-            document.getElementById('timer-display').innerText = `${h}:${m}:${s}`;
-        }
-
-        // 3. El motor del contador regresivo
-        function iniciarReloj() {
-            if (temporizador) clearInterval(temporizador); // Evitamos bucles de múltiples relojes corriendo
-            
-            temporizador = setInterval(() => {
-                if (tiempoRestante > 0) {
-                    tiempoRestante--;
-                    localStorage.setItem('tiempo_tubemusic', tiempoRestante);
-                    actualizarTimerUI();
-                } else {
-                    clearInterval(temporizador);
-                    // Opcional: Aquí podrías deshabilitar el botón de descarga si el tiempo llega a 0
-                }
-            }, 1000);
-        }
-
-        // 4. Invocado por MainActivity.java cuando termina el anuncio con éxito
-        // ¡IMPORTANTE!: Esta función ya NO debe llamar a solicitarAnuncio para evitar el bucle infinito.
-        window.sumarTiempo = function(segundos) {
-            tiempoRestante += parseInt(segundos);
-            localStorage.setItem('tiempo_tubemusic', tiempoRestante);
-            actualizarTimerUI();
-            iniciarReloj(); // Arrancamos el motor por si estaba frenado en 0
-            agregarLogDev("⏱️ Tiempo acreditado: +" + segundos + "s");
-        }
-
-        // 5. Solicitar anuncio a través del bridge nativo (Recibe el parámetro de los botones)
-        function solicitarAnuncio(segundosPedidos) {
-            if (window.AndroidBridge) {
-                // Le pasas a Java cuántos segundos se pidieron para que cargue el ID de AdMob correspondiente
-                window.AndroidBridge.verAnuncioPorTiempo(segundosPedidos);
-            } else {
-                agregarLogDev("⚠️ AndroidBridge no detectado. Simulando en Web.");
-                // Esto es solo para que puedas probar la UI en la PC sin depender de Java
-                window.sumarTiempo(segundosPedidos); 
-            }
-        }
-
-        // 6. Iniciar proceso de extracción
-        function iniciarDescarga() {
-            if (tiempoRestante <= 0) {
-                alert("¡No tienes tiempo! Mira un anuncio para recargar.");
-                return;
-            }
-
-            const url = document.getElementById('urlInput').value.trim();
-            if (!url) {
-                alert("Por favor introduce un enlace de YouTube.");
-                return;
-            }
-
-            if (window.AndroidBridge) {
-                window.AndroidBridge.procesarDescarga(url);
-            } else {
-                agregarLogDev("❌ Error: AndroidBridge no disponible.");
-            }
-        }
-
-        // Utilidades de Interfaz y Logs
-        function mostrarCargando(mensaje) {
-            const toast = document.getElementById('loading-toast');
-            toast.innerText = mensaje;
-            toast.style.display = 'block';
-        }
-
-        function ocultarCargando() {
-            document.getElementById('loading-toast').style.display = 'none';
-        }
-
-        window.agregarLogDev = function(mensaje) {
-            const consoleBox = document.getElementById('console-log');
-            if (consoleBox) {
-                const time = new Date().toLocaleTimeString();
-                consoleBox.innerHTML += "[" + time + "] " + mensaje + "\n";
-                consoleBox.scrollTop = consoleBox.scrollHeight;
-            }
-        };
-
-        function limpiarLogs() {
-            document.getElementById('console-log').innerHTML = "Consola limpia.\n";
-        }
-
-        // 7. Arrancar todo al cargar la vista
-        window.onload = function() {
-            actualizarTimerUI();
-            if (tiempoRestante > 0) {
-                iniciarReloj();
-            }
-        };
-            </script>
-            
+</body>
+</html>
