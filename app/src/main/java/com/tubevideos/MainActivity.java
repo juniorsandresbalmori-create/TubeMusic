@@ -37,6 +37,8 @@ public class MainActivity extends AppCompatActivity {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
+        webSettings.setAllowFileAccess(true);
+        webSettings.setAllowContentAccess(true);
 
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
@@ -94,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 String encodedUrl = URLEncoder.encode(youtubeUrlString, "UTF-8");
+                // API en el VPS
                 String apiEndpoint = "http://190.114.254.167:8000/extract?url=" + encodedUrl;
 
                 URL url = new URL(apiEndpoint);
@@ -101,6 +104,10 @@ public class MainActivity extends AppCompatActivity {
                 connection.setRequestMethod("GET");
                 connection.setConnectTimeout(15000);
                 connection.setReadTimeout(15000);
+
+                // HEADERS OBLIGATORIOS PARA EVITAR BLOQUEOS (403) AL CONSULTAR EL VPS
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                connection.setRequestProperty("Accept", "application/json");
 
                 int responseCode = connection.getResponseCode();
                 if (responseCode == HttpURLConnection.HTTP_OK) {
@@ -146,21 +153,25 @@ public class MainActivity extends AppCompatActivity {
         try {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(audioUrl));
             request.setTitle(fileName);
-            request.setDescription("Descargando MP3...");
+            request.setDescription("Guardando audio en Descargas...");
+            
+            // Notificación visible al terminar
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
             
-            // User-Agent obligatorio
+            // Encabezados necesarios para el CDN de destino final
             request.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            request.addRequestHeader("Accept", "*/*");
+
             request.setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI | DownloadManager.Request.NETWORK_MOBILE);
             request.setAllowedOverRoaming(true);
 
             DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             if (manager != null) {
                 long downloadId = manager.enqueue(request);
-                enviarLogDev("📥 Descarga encolada. Supervisando...");
+                enviarLogDev("📥 Descarga encolada [ID: " + downloadId + "]. Supervisando...");
                 
-                // Hilo vigilante para atrapar el error exacto y mandarlo a tu consola HTML
+                // Hilo supervisor para la consola del HTML
                 new Thread(() -> {
                     boolean supervisando = true;
                     while (supervisando) {
@@ -175,11 +186,11 @@ public class MainActivity extends AppCompatActivity {
                             if (statusIndex >= 0 && reasonIndex >= 0) {
                                 int status = cursor.getInt(statusIndex);
                                 if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                                    runOnUiThread(() -> enviarLogDev("✅ ¡Descarga completada con éxito!"));
+                                    runOnUiThread(() -> enviarLogDev("✅ ¡Descarga completada en Descargas!"));
                                     supervisando = false;
                                 } else if (status == DownloadManager.STATUS_FAILED) {
                                     int reason = cursor.getInt(reasonIndex);
-                                    runOnUiThread(() -> enviarLogDev("❌ El sistema bloqueó la descarga. Código de error: " + reason));
+                                    runOnUiThread(() -> enviarLogDev("❌ Error en DownloadManager. Código: " + reason));
                                     supervisando = false;
                                 }
                             }
@@ -192,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.e("TubeMusic", "Error DownloadManager", e);
-            enviarLogDev("❌ Error fatal interno: " + e.getMessage());
+            enviarLogDev("❌ Error fatal interno al descargar: " + e.getMessage());
         }
     }
-}
+    }
