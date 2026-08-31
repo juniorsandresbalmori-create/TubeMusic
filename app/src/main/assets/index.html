@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TubeMusic</title>
     <style>
-        /* Estilos generales */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
         body {
-            background-color: #121212; /* Fondo oscuro */
+            background-color: #121212;
             color: white;
             font-family: sans-serif;
             margin: 0;
@@ -19,21 +23,22 @@
 
         /* Barra superior */
         .header {
-            background-color: #9b51e0; /* Violeta */
+            background-color: #9b51e0;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px 20px;
+            padding: 12px 20px;
             font-weight: bold;
             font-size: 18px;
         }
         
         .header-icon {
             cursor: pointer;
-            font-size: 20px;
+            font-size: 22px;
+            padding: 5px;
         }
 
-        /* Contenedor principal */
+        /* Contenedores de pantallas */
         .content {
             flex: 1;
             display: flex;
@@ -54,6 +59,7 @@
             border-radius: 6px;
             margin-bottom: 15px;
             font-size: 14px;
+            outline: none;
         }
 
         button {
@@ -65,7 +71,7 @@
             color: white;
             font-weight: bold;
             font-size: 14px;
-            border-radius: 12px; /* Botones bien redondeados como en la captura */
+            border-radius: 12px;
             margin-bottom: 15px;
             cursor: pointer;
         }
@@ -74,7 +80,7 @@
             background: #7a3bbb;
         }
 
-        /* Menú de anuncios (Oculto por defecto) */
+        /* Menú de anuncios */
         #adMenu {
             display: none; 
             width: 100%;
@@ -95,6 +101,38 @@
             letter-spacing: 1px;
             cursor: pointer;
             color: #ccc;
+            padding: 10px;
+        }
+
+        /* Mensaje emergente (Toast) interno */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 25px;
+            padding: 12px;
+            position: fixed;
+            z-index: 10;
+            bottom: 30px;
+            font-size: 13px;
+            border: 1px solid #555;
+        }
+
+        #toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+
+        @keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+
+        @keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 0; opacity: 0;}
         }
     </style>
 </head>
@@ -103,13 +141,13 @@
     <!-- Barra superior -->
     <div class="header">
         <span id="timerDisplay">00:04:10</span>
-        <span class="header-icon" onclick="abrirMenu()">🔧</span>
+        <span class="header-icon" id="btnConfig">🔧</span>
     </div>
 
     <!-- Vista Principal: Descargas -->
     <div id="mainView" class="content">
         <input type="text" id="urlInput" placeholder="https://youtu.be/...">
-        <button onclick="iniciarDescarga()">DESCARGAR MP3</button>
+        <button id="btnDescargar">DESCARGAR MP3</button>
     </div>
 
     <!-- Vista Secundaria: Menú de Anuncios -->
@@ -121,43 +159,105 @@
         <button onclick="verAnuncio(1800)">+30 MINUTOS (PASE EXTENDIDO)</button>
         <button onclick="verAnuncio(3600)">+1 HORA (PASE PREMIUM)</button>
         
-        <div class="btn-volver" onclick="volverPrincipal()">VOLVER</div>
+        <div class="btn-volver" id="btnVolver">VOLVER</div>
     </div>
 
-    <!-- Lógica de la app -->
+    <!-- Toast de Notificaciones -->
+    <div id="toast">Notificación</div>
+
     <script>
-        // Funciones de navegación de la interfaz
-        function abrirMenu() {
+        // Variables de tiempo (segundos totales iniciales = 250 segundos = 00:04:10)
+        let segundosRestantes = 250;
+        let timerInterval = null;
+
+        // Actualizar el formato visual HH:MM:SS
+        function actualizarDisplay() {
+            let hrs = Math.floor(segundosRestantes / 3600);
+            let mins = Math.floor((segundosRestantes % 3600) / 60);
+            let secs = segundosRestantes % 60;
+
+            let formatted = 
+                String(hrs).padStart(2, '0') + ":" +
+                String(mins).padStart(2, '0') + ":" +
+                String(secs).padStart(2, '0');
+
+            document.getElementById('timerDisplay').innerText = formatted;
+        }
+
+        // Iniciar reloj
+        function iniciarReloj() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (segundosRestantes > 0) {
+                    segundosRestantes--;
+                    actualizarDisplay();
+                } else {
+                    mostrarMensaje("¡Tiempo agotado! Mira un anuncio para continuar.");
+                }
+            }, 1000);
+        }
+
+        // Navegación entre pantallas
+        document.getElementById('btnConfig').onclick = function() {
             document.getElementById('mainView').style.display = 'none';
             document.getElementById('adMenu').style.display = 'flex';
-        }
+        };
 
-        function volverPrincipal() {
+        document.getElementById('btnVolver').onclick = function() {
             document.getElementById('adMenu').style.display = 'none';
             document.getElementById('mainView').style.display = 'flex';
-        }
+        };
 
-        // Funciones conectadas a Android
-        function iniciarDescarga() {
-            let url = document.getElementById('urlInput').value;
+        // Función para agregar tiempo con los anuncios
+        function verAnuncio(segundosAñadidos) {
+            segundosRestantes += segundosAñadidos;
+            actualizarDisplay();
+            mostrarMensaje("+" + segundosAñadidos + " segundos añadidos.");
             
-            // Verificamos si existe el puente de Android que creaste en Java
-            if (window.AndroidBridge) {
-                window.AndroidBridge.mostrarToast("Iniciando descarga en segundo plano...");
-                // Acá luego agregaremos la lógica que se conecta a tu VPS
-            } else {
-                alert("Simulando descarga web: " + url);
+            if (window.AndroidBridge && window.AndroidBridge.mostrarToast) {
+                window.AndroidBridge.mostrarToast("Tiempo añadido correctamente.");
             }
         }
 
-        function verAnuncio(segundos) {
-            if (window.AndroidBridge) {
-                // Llama a una función en Java para mostrar el anuncio (a programar luego)
-                window.AndroidBridge.mostrarToast("Cargando anuncio de " + segundos + " segundos...");
-            } else {
-                alert("Simulando anuncio por " + segundos + " segundos.");
+        // Función de descarga
+        document.getElementById('btnDescargar').onclick = function() {
+            let url = document.getElementById('urlInput').value.trim();
+
+            if (!url) {
+                mostrarMensaje("Ingresa un enlace de YouTube.");
+                return;
             }
+
+            if (segundosRestantes <= 0) {
+                mostrarMensaje("Sin tiempo disponible. Mira un anuncio.");
+                return;
+            }
+
+            mostrarMensaje("Iniciando descarga en segundo plano...");
+
+            if (window.AndroidBridge) {
+                if (window.AndroidBridge.iniciarDescarga) {
+                    window.AndroidBridge.iniciarDescarga(url);
+                } else if (window.AndroidBridge.mostrarToast) {
+                    window.AndroidBridge.mostrarToast("Iniciando descarga de: " + url);
+                }
+            }
+        };
+
+        // Cartel emergente visual
+        function mostrarMensaje(texto) {
+            let toast = document.getElementById('toast');
+            toast.innerText = texto;
+            toast.className = "toast show";
+            setTimeout(() => { 
+                toast.className = toast.className.replace("show", ""); 
+            }, 2800);
         }
+
+        // Iniciar al cargar
+        actualizarDisplay();
+        iniciarReloj();
     </script>
 </body>
-</html>
+    </html>
+    
