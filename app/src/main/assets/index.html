@@ -80,6 +80,38 @@
             background: #7a3bbb;
         }
 
+        /* Barra de progreso */
+        .progress-box {
+            width: 90%;
+            max-width: 500px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 12px;
+            background-color: #2a2a2a;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background-color: #9b51e0;
+            transition: width 0.3s ease;
+        }
+
+        .progress-status {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 8px;
+        }
+
         /* Menú de anuncios */
         #adMenu {
             display: none; 
@@ -104,7 +136,7 @@
             padding: 10px;
         }
 
-        /* Mensaje emergente (Toast) interno */
+        /* Toast */
         #toast {
             visibility: hidden;
             min-width: 250px;
@@ -148,6 +180,14 @@
     <div id="mainView" class="content">
         <input type="text" id="urlInput" placeholder="https://youtu.be/...">
         <button id="btnDescargar">DESCARGAR MP3</button>
+
+        <!-- Componente de Progreso -->
+        <div class="progress-box" id="progressBox">
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-status" id="progressStatus">Conectando con el servidor...</div>
+        </div>
     </div>
 
     <!-- Vista Secundaria: Menú de Anuncios -->
@@ -162,15 +202,12 @@
         <div class="btn-volver" id="btnVolver">VOLVER</div>
     </div>
 
-    <!-- Toast de Notificaciones -->
     <div id="toast">Notificación</div>
 
     <script>
-        // Variables de tiempo (segundos totales iniciales = 250 segundos = 00:04:10)
         let segundosRestantes = 250;
         let timerInterval = null;
 
-        // Actualizar el formato visual HH:MM:SS
         function actualizarDisplay() {
             let hrs = Math.floor(segundosRestantes / 3600);
             let mins = Math.floor((segundosRestantes % 3600) / 60);
@@ -184,7 +221,6 @@
             document.getElementById('timerDisplay').innerText = formatted;
         }
 
-        // Iniciar reloj
         function iniciarReloj() {
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
@@ -197,7 +233,6 @@
             }, 1000);
         }
 
-        // Navegación entre pantallas
         document.getElementById('btnConfig').onclick = function() {
             document.getElementById('mainView').style.display = 'none';
             document.getElementById('adMenu').style.display = 'flex';
@@ -208,7 +243,6 @@
             document.getElementById('mainView').style.display = 'flex';
         };
 
-        // Función para agregar tiempo con los anuncios
         function verAnuncio(segundosAñadidos) {
             segundosRestantes += segundosAñadidos;
             actualizarDisplay();
@@ -219,7 +253,7 @@
             }
         }
 
-        // Función de descarga
+        // Lógica de descarga e integración con Android/VPS
         document.getElementById('btnDescargar').onclick = function() {
             let url = document.getElementById('urlInput').value.trim();
 
@@ -233,18 +267,53 @@
                 return;
             }
 
-            mostrarMensaje("Iniciando descarga en segundo plano...");
+            // Mostrar la barra de progreso e inhabilitar botón temporalmente
+            document.getElementById('progressBox').style.display = 'flex';
+            actualizarProgreso(0, "Iniciando descarga desde el VPS...");
 
-            if (window.AndroidBridge) {
-                if (window.AndroidBridge.iniciarDescarga) {
-                    window.AndroidBridge.iniciarDescarga(url);
-                } else if (window.AndroidBridge.mostrarToast) {
-                    window.AndroidBridge.mostrarToast("Iniciando descarga de: " + url);
-                }
+            if (window.AndroidBridge && window.AndroidBridge.iniciarDescarga) {
+                window.AndroidBridge.iniciarDescarga(url);
+            } else {
+                mostrarMensaje("Atención: Servidor nativo no detectado (modo pruebas web).");
+                // Simulación para pruebas en navegador
+                simularDescargaWeb();
             }
         };
 
-        // Cartel emergente visual
+        // Métodos globales llamados desde Java (Android)
+        window.actualizarProgreso = function(porcentaje, estado) {
+            document.getElementById('progressBox').style.display = 'flex';
+            document.getElementById('progressFill').style.width = porcentaje + '%';
+            if (estado) {
+                document.getElementById('progressStatus').innerText = estado;
+            }
+        };
+
+        window.descargaCompletada = function(mensaje) {
+            actualizarProgreso(100, mensaje || "¡Descarga completada!");
+            mostrarMensaje(mensaje || "Descarga finalizada con éxito.");
+            setTimeout(() => {
+                document.getElementById('progressBox').style.display = 'none';
+            }, 4000);
+        };
+
+        window.errorDescarga = function(errorMsg) {
+            document.getElementById('progressStatus').innerText = "Error: " + errorMsg;
+            mostrarMensaje("Error al descargar: " + errorMsg);
+        };
+
+        function simularDescargaWeb() {
+            let prog = 0;
+            let interval = setInterval(() => {
+                prog += 20;
+                window.actualizarProgreso(prog, "Descargando audio... " + prog + "%");
+                if (prog >= 100) {
+                    clearInterval(interval);
+                    window.descargaCompletada("Archivo MP3 guardado.");
+                }
+            }, 600);
+        }
+
         function mostrarMensaje(texto) {
             let toast = document.getElementById('toast');
             toast.innerText = texto;
@@ -254,10 +323,8 @@
             }, 2800);
         }
 
-        // Iniciar al cargar
         actualizarDisplay();
         iniciarReloj();
     </script>
 </body>
-    </html>
-    
+</html>
