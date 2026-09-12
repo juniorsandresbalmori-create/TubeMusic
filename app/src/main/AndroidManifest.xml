@@ -3,11 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.tubevideos">
 
-    <!-- Permisos necesarios para internet y descargas -->
+    <!-- Permisos para acceso a red y gestión de descargas locales -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" tools:ignore="ScopedStorage" />
 
     <application
         android:allowBackup="true"
@@ -15,7 +15,8 @@
         android:label="TubeMusic"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-        android:usesCleartextTraffic="true"> <!-- CLAVE para tu VPS HTTP -->
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true">
 
         <!-- ID de prueba oficial de Google AdMob -->
         <meta-data
