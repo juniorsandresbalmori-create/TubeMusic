@@ -36,7 +36,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'com.google.android.gms:play-services-ads:23.0.0'
 
-    // Repositorio de GitHub con la versión correcta ('v0.17.0')
-    implementation 'com.github.yausername.youtubedl-android:library:v0.17.0'
-    implementation 'com.github.yausername.youtubedl-android:ffmpeg:v0.17.0'
+    // Versión 0.18.1 (La última release oficial disponible en GitHub)
+    implementation 'com.github.yausername.youtubedl-android:library:0.18.1'
+    implementation 'com.github.yausername.youtubedl-android:ffmpeg:0.18.1'
 }
