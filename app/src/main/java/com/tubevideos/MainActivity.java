@@ -116,7 +116,9 @@ public class MainActivity extends AppCompatActivity {
                 request.addOption("--no-playlist");
                 request.addOption("-o", plantilla);
 
-                YoutubeDL.getInstance().execute(request, processId,
+                // Sobrecarga de 4 argumentos: (request, processId, redirectErrorStream, callback).
+                // Especificar 'false' elimina la ambigüedad entre sobrecargas de @JvmOverloads.
+                YoutubeDL.getInstance().execute(request, processId, false,
                         (progress, etaInSeconds, line) -> {
                             int pct = (int) (progress * 100);
                             runOnUiThread(() -> enviarComandoJS(
@@ -183,4 +185,4 @@ public class MainActivity extends AppCompatActivity {
 
         mp3.delete();
     }
-}
+            }
