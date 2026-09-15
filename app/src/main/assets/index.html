@@ -1,3 +1,7 @@
+4/9
+recursos/index.html
+Avance
+Código
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -21,7 +25,6 @@
             overflow: hidden;
         }
 
-        /* Barra superior */
         .header {
             background-color: #9b51e0;
             display: flex;
@@ -31,14 +34,13 @@
             font-weight: bold;
             font-size: 18px;
         }
-        
+
         .header-icon {
             cursor: pointer;
             font-size: 22px;
             padding: 5px;
         }
 
-        /* Contenedores de pantallas */
         .content {
             flex: 1;
             display: flex;
@@ -47,284 +49,3 @@
             align-items: center;
             padding: 20px;
         }
-
-        /* Inputs y Botones */
-        input[type="text"] {
-            width: 90%;
-            max-width: 500px;
-            padding: 15px;
-            background: #2a2a2a;
-            border: 1px solid #333;
-            color: white;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            font-size: 14px;
-            outline: none;
-        }
-
-        button {
-            width: 90%;
-            max-width: 500px;
-            padding: 15px;
-            background: #9b51e0;
-            border: none;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-            border-radius: 12px;
-            margin-bottom: 15px;
-            cursor: pointer;
-        }
-
-        button:active {
-            background: #7a3bbb;
-        }
-
-        /* Barra de progreso */
-        .progress-box {
-            width: 90%;
-            max-width: 500px;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 10px;
-        }
-
-        .progress-track {
-            width: 100%;
-            height: 12px;
-            background-color: #2a2a2a;
-            border-radius: 6px;
-            overflow: hidden;
-            border: 1px solid #333;
-        }
-
-        .progress-fill {
-            width: 0%;
-            height: 100%;
-            background-color: #9b51e0;
-            transition: width 0.3s ease;
-        }
-
-        .progress-status {
-            font-size: 12px;
-            color: #aaa;
-            margin-top: 8px;
-        }
-
-        /* Menú de anuncios */
-        #adMenu {
-            display: none; 
-            width: 100%;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        #adMenu h3 {
-            margin-bottom: 25px;
-            font-size: 16px;
-            letter-spacing: 1px;
-        }
-
-        .btn-volver {
-            margin-top: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            letter-spacing: 1px;
-            cursor: pointer;
-            color: #ccc;
-            padding: 10px;
-        }
-
-        /* Toast */
-        #toast {
-            visibility: hidden;
-            min-width: 250px;
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            border-radius: 25px;
-            padding: 12px;
-            position: fixed;
-            z-index: 10;
-            bottom: 30px;
-            font-size: 13px;
-            border: 1px solid #555;
-        }
-
-        #toast.show {
-            visibility: visible;
-            animation: fadein 0.5s, fadeout 0.5s 2.5s;
-        }
-
-        @keyframes fadein {
-            from {bottom: 0; opacity: 0;}
-            to {bottom: 30px; opacity: 1;}
-        }
-
-        @keyframes fadeout {
-            from {bottom: 30px; opacity: 1;}
-            to {bottom: 0; opacity: 0;}
-        }
-    </style>
-</head>
-<body>
-
-    <!-- Barra superior -->
-    <div class="header">
-        <span id="timerDisplay">00:04:10</span>
-        <span class="header-icon" id="btnConfig">🔧</span>
-    </div>
-
-    <!-- Vista Principal: Descargas -->
-    <div id="mainView" class="content">
-        <input type="text" id="urlInput" placeholder="https://youtu.be/...">
-        <button id="btnDescargar">DESCARGAR MP3</button>
-
-        <!-- Componente de Progreso -->
-        <div class="progress-box" id="progressBox">
-            <div class="progress-track">
-                <div class="progress-fill" id="progressFill"></div>
-            </div>
-            <div class="progress-status" id="progressStatus">Conectando con el servidor...</div>
-        </div>
-    </div>
-
-    <!-- Vista Secundaria: Menú de Anuncios -->
-    <div id="adMenu" class="content">
-        <h3>CONSEGUIR TIEMPO</h3>
-        <button onclick="verAnuncio(15)">+15 SEGUNDOS (ANUNCIO CORTO)</button>
-        <button onclick="verAnuncio(30)">+30 SEGUNDOS (ANUNCIO MEDIO)</button>
-        <button onclick="verAnuncio(300)">+5 MINUTOS (ANUNCIO LARGO)</button>
-        <button onclick="verAnuncio(1800)">+30 MINUTOS (PASE EXTENDIDO)</button>
-        <button onclick="verAnuncio(3600)">+1 HORA (PASE PREMIUM)</button>
-        
-        <div class="btn-volver" id="btnVolver">VOLVER</div>
-    </div>
-
-    <div id="toast">Notificación</div>
-
-    <script>
-        let segundosRestantes = 250;
-        let timerInterval = null;
-
-        function actualizarDisplay() {
-            let hrs = Math.floor(segundosRestantes / 3600);
-            let mins = Math.floor((segundosRestantes % 3600) / 60);
-            let secs = segundosRestantes % 60;
-
-            let formatted = 
-                String(hrs).padStart(2, '0') + ":" +
-                String(mins).padStart(2, '0') + ":" +
-                String(secs).padStart(2, '0');
-
-            document.getElementById('timerDisplay').innerText = formatted;
-        }
-
-        function iniciarReloj() {
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                if (segundosRestantes > 0) {
-                    segundosRestantes--;
-                    actualizarDisplay();
-                } else {
-                    mostrarMensaje("¡Tiempo agotado! Mira un anuncio para continuar.");
-                }
-            }, 1000);
-        }
-
-        document.getElementById('btnConfig').onclick = function() {
-            document.getElementById('mainView').style.display = 'none';
-            document.getElementById('adMenu').style.display = 'flex';
-        };
-
-        document.getElementById('btnVolver').onclick = function() {
-            document.getElementById('adMenu').style.display = 'none';
-            document.getElementById('mainView').style.display = 'flex';
-        };
-
-        function verAnuncio(segundosAñadidos) {
-            segundosRestantes += segundosAñadidos;
-            actualizarDisplay();
-            mostrarMensaje("+" + segundosAñadidos + " segundos añadidos.");
-            
-            if (window.AndroidBridge && window.AndroidBridge.mostrarToast) {
-                window.AndroidBridge.mostrarToast("Tiempo añadido correctamente.");
-            }
-        }
-
-        // Lógica de descarga e integración con Android/VPS
-        document.getElementById('btnDescargar').onclick = function() {
-            let url = document.getElementById('urlInput').value.trim();
-
-            if (!url) {
-                mostrarMensaje("Ingresa un enlace de YouTube.");
-                return;
-            }
-
-            if (segundosRestantes <= 0) {
-                mostrarMensaje("Sin tiempo disponible. Mira un anuncio.");
-                return;
-            }
-
-            // Mostrar la barra de progreso e inhabilitar botón temporalmente
-            document.getElementById('progressBox').style.display = 'flex';
-            actualizarProgreso(0, "Iniciando descarga desde el VPS...");
-
-            if (window.AndroidBridge && window.AndroidBridge.iniciarDescarga) {
-                window.AndroidBridge.iniciarDescarga(url);
-            } else {
-                mostrarMensaje("Atención: Servidor nativo no detectado (modo pruebas web).");
-                // Simulación para pruebas en navegador
-                simularDescargaWeb();
-            }
-        };
-
-        // Métodos globales llamados desde Java (Android)
-        window.actualizarProgreso = function(porcentaje, estado) {
-            document.getElementById('progressBox').style.display = 'flex';
-            document.getElementById('progressFill').style.width = porcentaje + '%';
-            if (estado) {
-                document.getElementById('progressStatus').innerText = estado;
-            }
-        };
-
-        window.descargaCompletada = function(mensaje) {
-            actualizarProgreso(100, mensaje || "¡Descarga completada!");
-            mostrarMensaje(mensaje || "Descarga finalizada con éxito.");
-            setTimeout(() => {
-                document.getElementById('progressBox').style.display = 'none';
-            }, 4000);
-        };
-
-        window.errorDescarga = function(errorMsg) {
-            document.getElementById('progressStatus').innerText = "Error: " + errorMsg;
-            mostrarMensaje("Error al descargar: " + errorMsg);
-        };
-
-        function simularDescargaWeb() {
-            let prog = 0;
-            let interval = setInterval(() => {
-                prog += 20;
-                window.actualizarProgreso(prog, "Descargando audio... " + prog + "%");
-                if (prog >= 100) {
-                    clearInterval(interval);
-                    window.descargaCompletada("Archivo MP3 guardado.");
-                }
-            }, 600);
-        }
-
-        function mostrarMensaje(texto) {
-            let toast = document.getElementById('toast');
-            toast.innerText = texto;
-            toast.className = "toast show";
-            setTimeout(() => { 
-                toast.className = toast.className.replace("show", ""); 
-            }, 2800);
-        }
-
-        actualizarDisplay();
-        iniciarReloj();
-    </script>
-</body>
-</html>
