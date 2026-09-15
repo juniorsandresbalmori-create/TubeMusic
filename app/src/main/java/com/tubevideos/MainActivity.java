@@ -49,11 +49,9 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
 
-        // Directorio privado de la app: no requiere permisos en ninguna API level.
         workDir = new File(getExternalFilesDir(null), "audio");
         if (!workDir.exists()) workDir.mkdirs();
 
-        // Inicializar el motor local (yt-dlp + ffmpeg). Es pesado => en hilo aparte.
         new Thread(() -> {
             try {
                 YoutubeDL.getInstance().init(getApplicationContext());
@@ -68,9 +66,6 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl("file:///android_asset/index.html");
     }
 
-    // =========================================================
-    // Puente JS -> Java (solo estos dos son visibles desde JS)
-    // =========================================================
     public class WebAppInterface {
         Context mContext;
 
@@ -95,9 +90,6 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
-    // =========================================================
-    // Puente Java -> JS
-    // =========================================================
     private void enviarComandoJS(String comando) {
         if (webView != null) {
             webView.evaluateJavascript("javascript:" + comando, null);
@@ -109,15 +101,11 @@ public class MainActivity extends AppCompatActivity {
         return s.replace("\\", "\\\\").replace("'", "\\'");
     }
 
-    // =========================================================
-    // Descarga 100% local: youtube-dl + FFmpeg (sin VPS, sin VPN)
-    // =========================================================
     private void procesarDescargaLocal(String youtubeUrl) {
         new Thread(() -> {
             String processId = UUID.randomUUID().toString();
 
             try {
-                // Plantilla de salida: workDir/<uuid>.mp3
                 String plantilla = new File(workDir, processId + ".%(ext)s").getAbsolutePath();
 
                 YoutubeDLRequest request = new YoutubeDLRequest(youtubeUrl);
@@ -134,9 +122,9 @@ public class MainActivity extends AppCompatActivity {
                             runOnUiThread(() -> enviarComandoJS(
                                     "actualizarProgreso(" + pct
                                     + ", 'Descargando y convirtiendo... " + pct + "%')"));
+                            return true; // <-- FIX: true = continuar, false = cancelar
                         });
 
-                // youtube-dl puede renombrar el archivo final; lo buscamos por prefijo.
                 File outFile = null;
                 File[] candidatos = workDir.listFiles((d, n) ->
                         n.startsWith(processId) && n.endsWith(".mp3"));
@@ -164,10 +152,6 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    /**
-     * Publica el MP3 en la carpeta publica Musica/ usando MediaStore (scoped storage).
-     * No requiere WRITE_EXTERNAL_STORAGE. Borra el temporal al terminar.
-     */
     private void publicarEnMediaStore(File mp3, String titulo) {
         Uri collection;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -198,7 +182,6 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Error copiando a MediaStore", e);
         }
 
-        // Ya publicada en Musica: borramos el temporal del directorio privado.
         mp3.delete();
     }
-}
+                       }
