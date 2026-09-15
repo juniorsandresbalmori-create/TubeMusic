@@ -26,6 +26,10 @@ import java.io.FileInputStream;
 import java.io.OutputStream;
 import java.util.UUID;
 
+// Importaciones cruciales para la compatibilidad con Kotlin
+import kotlin.Unit;
+import kotlin.jvm.functions.Function3;
+
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "TubeMusic";
@@ -116,15 +120,21 @@ public class MainActivity extends AppCompatActivity {
                 request.addOption("--no-playlist");
                 request.addOption("-o", plantilla);
 
-                // Sobrecarga de 4 argumentos: (request, processId, redirectErrorStream, callback).
-                // Especificar 'false' elimina la ambigüedad entre sobrecargas de @JvmOverloads.
-                YoutubeDL.getInstance().execute(request, processId, false,
-                        (progress, etaInSeconds, line) -> {
-                            int pct = (int) (progress * 100);
-                            runOnUiThread(() -> enviarComandoJS(
-                                    "actualizarProgreso(" + pct
-                                    + ", 'Descargando y convirtiendo... " + pct + "%')"));
-                        });
+                // Solución al problema de compilación: 
+                // 1. Eliminamos el parámetro "false" para que la firma coincida (3 argumentos).
+                // 2. Usamos la interfaz Function3 explícita de Kotlin para evitar fallos del compilador de Java.
+                YoutubeDL.getInstance().execute(request, processId, new Function3<Float, Long, String, Unit>() {
+                    @Override
+                    public Unit invoke(Float progress, Long etaInSeconds, String line) {
+                        int pct = (int) (progress * 100);
+                        runOnUiThread(() -> enviarComandoJS(
+                                "actualizarProgreso(" + pct
+                                + ", 'Descargando y convirtiendo... " + pct + "%')"));
+                        
+                        // En Kotlin los callbacks esperan el retorno Unit.INSTANCE
+                        return Unit.INSTANCE;
+                    }
+                });
 
                 File outFile = null;
                 File[] candidatos = workDir.listFiles((d, n) ->
@@ -134,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 if (outFile == null || !outFile.exists()) {
-                    throw new Exception("El motor local no genero ningun MP3");
+                    throw new Exception("El motor local no generó ningún MP3");
                 }
 
                 String titulo = processId;
@@ -142,7 +152,7 @@ public class MainActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     enviarComandoJS("actualizarProgreso(100, 'Listo')");
-                    enviarComandoJS("descargaCompletada('Guardado en Musica - " + titulo + ".mp3')");
+                    enviarComandoJS("descargaCompletada('Guardado en Música - " + titulo + ".mp3')");
                 });
 
             } catch (Exception e) {
@@ -185,4 +195,4 @@ public class MainActivity extends AppCompatActivity {
 
         mp3.delete();
     }
-            }
+    }
