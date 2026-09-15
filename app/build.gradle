@@ -1,42 +1,42 @@
 plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace 'com.tubevideos'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.tubevideos"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-
-        ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-        }
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'com.google.android.gms:play-services-ads:23.0.0'
-
-    // Solución para forzar la descarga de la última versión directamente desde GitHub
-    implementation 'com.github.yausername.youtubedl-android:library:master-SNAPSHOT'
-    implementation 'com.github.yausername.youtubedl-android:ffmpeg:master-SNAPSHOT'
-}
+      id 'com.android.application'
+  }
+  
+  android {
+      namespace 'com.tubevideos'
+      compileSdk 34
+  
+      defaultConfig {
+          applicationId "com.tubevideos"
+          minSdk 24
+          targetSdk 34
+          versionCode 1
+          versionName "1.0"
+  
+          ndk {
+              abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+          }
+      }
+  
+      buildTypes {
+          release {
+              minifyEnabled false
+-             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+          }
+      }
+  
+      compileOptions {
+          sourceCompatibility JavaVersion.VERSION_1_8
+          targetCompatibility JavaVersion.VERSION_1_8
+      }
+  }
+  
+  dependencies {
+      implementation 'androidx.appcompat:appcompat:1.6.1'
+      implementation 'com.google.android.material:material:1.11.0'
+      implementation 'com.google.android.gms:play-services-ads:23.0.0'
+  
+      // Versiones fijas (antes master-SNAPSHOT, que es fragil y no reproducible)
+      implementation 'com.github.yausername.youtubedl-android:library:0.15.0'
+      implementation 'com.github.yausername.youtubedl-android:ffmpeg:0.15.0'
+  }
