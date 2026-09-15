@@ -26,7 +26,6 @@ import java.io.FileInputStream;
 import java.io.OutputStream;
 import java.util.UUID;
 
-// Importaciones cruciales para la compatibilidad con Kotlin
 import kotlin.Unit;
 import kotlin.jvm.functions.Function3;
 
@@ -42,6 +41,11 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         webView = findViewById(R.id.webView);
+
+        // Habilita la depuración de la WebView desde Chrome DevTools (chrome://inspect)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            WebView.setWebContentsDebuggingEnabled(true);
+        }
 
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
@@ -63,7 +67,9 @@ public class MainActivity extends AppCompatActivity {
                 Log.i(TAG, "Motor local (youtube-dl + ffmpeg) listo");
             } catch (Exception e) {
                 Log.e(TAG, "Error inicializando motor local", e);
-                runOnUiThread(() -> toast("Error inicializando el motor local"));
+                // Muestra la causa detallada del error en la pantalla
+                String errorDetalle = e.getMessage() != null ? e.getMessage() : e.toString();
+                runOnUiThread(() -> toast("Error: " + errorDetalle));
             }
         }).start();
 
@@ -120,9 +126,6 @@ public class MainActivity extends AppCompatActivity {
                 request.addOption("--no-playlist");
                 request.addOption("-o", plantilla);
 
-                // Solución al problema de compilación: 
-                // 1. Eliminamos el parámetro "false" para que la firma coincida (3 argumentos).
-                // 2. Usamos la interfaz Function3 explícita de Kotlin para evitar fallos del compilador de Java.
                 YoutubeDL.getInstance().execute(request, processId, new Function3<Float, Long, String, Unit>() {
                     @Override
                     public Unit invoke(Float progress, Long etaInSeconds, String line) {
@@ -130,8 +133,6 @@ public class MainActivity extends AppCompatActivity {
                         runOnUiThread(() -> enviarComandoJS(
                                 "actualizarProgreso(" + pct
                                 + ", 'Descargando y convirtiendo... " + pct + "%')"));
-                        
-                        // En Kotlin los callbacks esperan el retorno Unit.INSTANCE
                         return Unit.INSTANCE;
                     }
                 });
@@ -180,7 +181,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         Uri itemUri = getContentResolver().insert(collection, values);
-        if (itemUri == null) return;
+        if (itemUri == null) {
+            mp3.delete();
+            return;
+        }
 
         try (OutputStream os = getContentResolver().openOutputStream(itemUri);
              FileInputStream fis = new FileInputStream(mp3)) {
@@ -191,8 +195,8 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.e(TAG, "Error copiando a MediaStore", e);
+        } finally {
+            mp3.delete();
         }
-
-        mp3.delete();
     }
-    }
+                            }
