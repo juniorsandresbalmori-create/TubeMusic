@@ -122,7 +122,6 @@ public class MainActivity extends AppCompatActivity {
                             runOnUiThread(() -> enviarComandoJS(
                                     "actualizarProgreso(" + pct
                                     + ", 'Descargando y convirtiendo... " + pct + "%')"));
-                            return true; // <-- FIX: true = continuar, false = cancelar
                         });
 
                 File outFile = null;
@@ -184,4 +183,4 @@ public class MainActivity extends AppCompatActivity {
 
         mp3.delete();
     }
-}
+            }
