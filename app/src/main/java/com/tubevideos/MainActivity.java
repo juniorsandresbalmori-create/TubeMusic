@@ -34,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "TubeMusic";
     private WebView webView;
     private File workDir;
+    private boolean isEngineReady = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,7 +43,6 @@ public class MainActivity extends AppCompatActivity {
 
         webView = findViewById(R.id.webView);
 
-        // Habilita la depuración de la WebView desde Chrome DevTools (chrome://inspect)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             WebView.setWebContentsDebuggingEnabled(true);
         }
@@ -60,20 +60,26 @@ public class MainActivity extends AppCompatActivity {
         workDir = new File(getExternalFilesDir(null), "audio");
         if (!workDir.exists()) workDir.mkdirs();
 
-        new Thread(() -> {
-            try {
-                YoutubeDL.getInstance().init(getApplicationContext());
-                FFmpeg.getInstance().init(getApplicationContext());
-                Log.i(TAG, "Motor local (youtube-dl + ffmpeg) listo");
-            } catch (Exception e) {
-                Log.e(TAG, "Error inicializando motor local", e);
-                // Muestra la causa detallada del error en la pantalla
-                String errorDetalle = e.getMessage() != null ? e.getMessage() : e.toString();
-                runOnUiThread(() -> toast("Error: " + errorDetalle));
-            }
-        }).start();
+        inicializarMotor();
 
         webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    private void inicializarMotor() {
+        new Thread(() -> {
+            try {
+                FFmpeg.getInstance().init(getApplicationContext());
+                YoutubeDL.getInstance().init(getApplicationContext());
+                isEngineReady = true;
+                Log.i(TAG, "Motor local listo");
+                runOnUiThread(() -> enviarComandoJS("motorListo()"));
+            } catch (Exception e) {
+                isEngineReady = false;
+                Log.e(TAG, "Error inicializando motor local", e);
+                String err = e.getMessage() != null ? e.getMessage() : e.toString();
+                runOnUiThread(() -> enviarComandoJS("errorDescarga('Error de inicialización: " + escapeJs(err) + "')"));
+            }
+        }).start();
     }
 
     public class WebAppInterface {
@@ -85,8 +91,12 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void iniciarDescarga(String url) {
-            runOnUiThread(() -> enviarComandoJS(
-                    "actualizarProgreso(0, 'Preparando motor local...')"));
+            if (!isEngineReady) {
+                runOnUiThread(() -> enviarComandoJS("errorDescarga('El motor aún se está inicializando...')"));
+                inicializarMotor();
+                return;
+            }
+            runOnUiThread(() -> enviarComandoJS("actualizarProgreso(0, 'Preparando descarga...')"));
             procesarDescargaLocal(url);
         }
 
@@ -131,15 +141,13 @@ public class MainActivity extends AppCompatActivity {
                     public Unit invoke(Float progress, Long etaInSeconds, String line) {
                         int pct = (int) (progress * 100);
                         runOnUiThread(() -> enviarComandoJS(
-                                "actualizarProgreso(" + pct
-                                + ", 'Descargando y convirtiendo... " + pct + "%')"));
+                                "actualizarProgreso(" + pct + ", 'Descargando y convirtiendo... " + pct + "%')"));
                         return Unit.INSTANCE;
                     }
                 });
 
                 File outFile = null;
-                File[] candidatos = workDir.listFiles((d, n) ->
-                        n.startsWith(processId) && n.endsWith(".mp3"));
+                File[] candidatos = workDir.listFiles((d, n) -> n.startsWith(processId) && n.endsWith(".mp3"));
                 if (candidatos != null && candidatos.length > 0) {
                     outFile = candidatos[0];
                 }
@@ -158,8 +166,7 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (Exception e) {
                 Log.e(TAG, "Error en descarga local", e);
-                runOnUiThread(() -> enviarComandoJS(
-                        "errorDescarga('" + escapeJs(e.getMessage()) + "')"));
+                runOnUiThread(() -> enviarComandoJS("errorDescarga('" + escapeJs(e.getMessage()) + "')"));
             }
         }).start();
     }
@@ -199,4 +206,4 @@ public class MainActivity extends AppCompatActivity {
             mp3.delete();
         }
     }
-                            }
+}
