@@ -1,7 +1,3 @@
-4/9
-recursos/index.html
-Avance
-Código
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -9,43 +5,39 @@ Código
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TubeMusic</title>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background-color: #121212; color: #fff; display: flex; flex-direction: column; height: 100vh; justify-content: center; align-items: center; padding: 20px; }
+        .container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 16px; text-align: center; }
+        h1 { color: #8B5CF6; font-size: 28px; }
+        input { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #333; background: #1e1e1e; color: #fff; outline: none; }
+        button { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #8B5CF6; color: white; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #4c3782; }
+        .status { margin-top: 10px; padding: 12px; border-radius: 8px; background: #1e1e1e; color: #aaa; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TubeMusic</h1>
+        <input type="text" id="urlInput" placeholder="Pega la URL de YouTube...">
+        <button id="btn" onclick="descargar()">Descargar Audio</button>
+        <div id="status" class="status">Listo para descargar</div>
+    </div>
+    <script>
+        function descargar() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return;
+            document.getElementById('btn').disabled = true;
+            if (window.AndroidBridge) window.AndroidBridge.iniciarDescarga(url);
         }
-
-        body {
-            background-color: #121212;
-            color: white;
-            font-family: sans-serif;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
+        function actualizarProgreso(pct, msg) { document.getElementById('status').innerText = msg; }
+        function descargaCompletada(msg) { 
+            document.getElementById('status').innerText = "✓ " + msg; 
+            document.getElementById('btn').disabled = false;
         }
-
-        .header {
-            background-color: #9b51e0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 20px;
-            font-weight: bold;
-            font-size: 18px;
+        function errorDescarga(err) { 
+            document.getElementById('status').innerText = "Error: " + err; 
+            document.getElementById('btn').disabled = false;
         }
-
-        .header-icon {
-            cursor: pointer;
-            font-size: 22px;
-            padding: 5px;
-        }
-
-        .content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
+    </script>
+</body>
+</html>
