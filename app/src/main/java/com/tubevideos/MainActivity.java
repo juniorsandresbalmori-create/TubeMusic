@@ -62,7 +62,6 @@ public class MainActivity extends AppCompatActivity {
 
         webView.loadUrl("file:///android_asset/index.html");
         
-        // Se ejecuta la inicialización para permitir que la WebView cargue primero la consola Dev
         webView.postDelayed(this::inicializarMotor, 500);
     }
 
@@ -74,15 +73,22 @@ public class MainActivity extends AppCompatActivity {
     private void inicializarMotor() {
         new Thread(() -> {
             try {
-                logDev("INFO", "Probando acceso a directorio de trabajo: " + workDir.getAbsolutePath());
+                logDev("INFO", "Directorio de trabajo: " + workDir.getAbsolutePath());
                 
                 logDev("INFO", "Iniciando FFmpeg...");
                 FFmpeg.getInstance().init(getApplicationContext());
-                logDev("SUCCESS", "FFmpeg inicializado correctamente.");
+                logDev("SUCCESS", "FFmpeg inicializado.");
 
                 logDev("INFO", "Iniciando YoutubeDL...");
                 YoutubeDL.getInstance().init(getApplicationContext());
-                logDev("SUCCESS", "YoutubeDL inicializado correctamente.");
+                logDev("SUCCESS", "YoutubeDL inicializado.");
+
+                logDev("INFO", "Descargando ultima version de yt-dlp desde GitHub...");
+                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
+                        getApplicationContext(), 
+                        YoutubeDL.UpdateChannel.STABLE
+                );
+                logDev("SUCCESS", "yt-dlp actualizado correctamente (" + status + ").");
 
                 isEngineReady = true;
                 runOnUiThread(() -> enviarComandoJS("motorListo()"));
@@ -116,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void reintentarInit() {
-            logDev("INFO", "Reintentando inicializacion manual...");
+            logDev("INFO", "Reintentando inicialización manual...");
             inicializarMotor();
         }
 
@@ -152,14 +158,15 @@ public class MainActivity extends AppCompatActivity {
                 String plantilla = new File(workDir, processId + ".%(ext)s").getAbsolutePath();
 
                 YoutubeDLRequest request = new YoutubeDLRequest(youtubeUrl);
-                request.addOption("-f", "bestaudio");
+                request.addOption("-f", "bestaudio/best");
                 request.addOption("--extract-audio");
                 request.addOption("--audio-format", "mp3");
                 request.addOption("--audio-quality", "0");
                 request.addOption("--no-playlist");
+                request.addOption("--extractor-args", "youtube:player_client=mweb,ios,tv");
                 request.addOption("-o", plantilla);
 
-                logDev("INFO", "Ejecutando orden yt-dlp...");
+                logDev("INFO", "Ejecutando ejecutable yt-dlp...");
                 YoutubeDL.getInstance().execute(request, processId, new Function3<Float, Long, String, Unit>() {
                     @Override
                     public Unit invoke(Float progress, Long etaInSeconds, String line) {
@@ -183,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
                     throw new Exception("El motor local no generó ningún MP3");
                 }
 
-                logDev("SUCCESS", "Archivo procesado: " + outFile.getAbsolutePath());
+                logDev("SUCCESS", "Archivo listo: " + outFile.getAbsolutePath());
                 publicarEnMediaStore(outFile, processId);
 
                 runOnUiThread(() -> {
@@ -227,11 +234,12 @@ public class MainActivity extends AppCompatActivity {
             while ((len = fis.read(buffer)) > 0) {
                 os.write(buffer, 0, len);
             }
-            logDev("SUCCESS", "Copiado a MediaStore correctamente.");
+            logDev("SUCCESS", "Guardado en MediaStore exitosamente.");
         } catch (Exception e) {
             logDev("ERROR", "Fallo al copiar a MediaStore:\n" + Log.getStackTraceString(e));
         } finally {
             mp3.delete();
         }
     }
-        }
+                    }
+                   
