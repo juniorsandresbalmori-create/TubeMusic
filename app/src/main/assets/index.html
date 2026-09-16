@@ -5,153 +5,102 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TubeMusic</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            user-select: none;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background-color: #121212; color: #fff; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        .main-content { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+        .container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+        h1 { color: #8B5CF6; font-size: 26px; }
+        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #1e1e1e; color: #fff; outline: none; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #8B5CF6; color: white; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #4c3782; }
+        .status { padding: 10px; border-radius: 6px; background: #1e1e1e; color: #aaa; font-size: 13px; }
 
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 400px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            text-align: center;
-        }
-
-        h1 {
-            color: #8B5CF6;
-            font-size: 28px;
-            font-weight: bold;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 14px;
-            border-radius: 12px;
-            border: 1px solid #333333;
-            background-color: #1e1e1e;
-            color: #ffffff;
-            font-size: 15px;
-            outline: none;
-        }
-
-        input[type="text"]:focus {
-            border-color: #8B5CF6;
-        }
-
-        button {
-            width: 100%;
-            padding: 14px;
-            border-radius: 12px;
-            border: none;
-            background-color: #8B5CF6;
-            color: #ffffff;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        button:disabled {
-            background-color: #4c3782;
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .status-box {
-            margin-top: 10px;
-            padding: 14px;
-            border-radius: 10px;
-            background-color: #1e1e1e;
-            font-size: 14px;
-            color: #aaaaaa;
-            min-height: 48px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            word-break: break-word;
-        }
+        /* Panel Dev */
+        .dev-panel { height: 220px; background-color: #0d0d0d; border-top: 2px solid #8B5CF6; display: flex; flex-direction: column; font-family: monospace; font-size: 11px; }
+        .dev-header { background: #181818; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
+        .dev-title { color: #8B5CF6; font-weight: bold; }
+        .dev-btn { background: #333; color: #fff; border: none; padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; }
+        .dev-logs { flex: 1; padding: 8px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+        
+        .log-INFO { color: #60a5fa; }
+        .log-SUCCESS { color: #4ade80; }
+        .log-WARN { color: #facc15; }
+        .log-ERROR { color: #f87171; }
+        .log-YTDL { color: #c084fc; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>TubeMusic</h1>
-        <input type="text" id="urlInput" placeholder="Pega el enlace de YouTube aquí...">
-        <button id="btnDescargar" onclick="procesarUrl()">Descargar Audio</button>
-        
-        <div id="status" class="status-box">
-            Inicializando motor local...
+    <div class="main-content">
+        <div class="container">
+            <h1>TubeMusic</h1>
+            <input type="text" id="urlInput" placeholder="Pega la URL de YouTube...">
+            <button id="btn" onclick="descargar()">Descargar Audio</button>
+            <div id="status" class="status">Inicializando motor local...</div>
         </div>
     </div>
 
+    <!-- Consola tipo DevTools -->
+    <div class="dev-panel">
+        <div class="dev-header">
+            <span class="dev-title">CONSOLE LOG</span>
+            <div>
+                <button class="dev-btn" onclick="reintentar()">Reintentar Init</button>
+                <button class="dev-btn" onclick="limpiarLogs()">Limpiar</button>
+            </div>
+        </div>
+        <div id="devLogs" class="dev-logs"></div>
+    </div>
+
     <script>
-        // Bloquea el botón al cargar hasta recibir confirmación del motor nativo
         document.addEventListener("DOMContentLoaded", function() {
-            document.getElementById('btnDescargar').disabled = true;
+            document.getElementById('btn').disabled = true;
+            agregarDevLog('INFO', 'Interfaz Web lista. Esperando respuestas nativas...');
         });
 
-        // Llamado desde MainActivity cuando YoutubeDL y FFmpeg están listos
+        function agregarDevLog(nivel, mensaje) {
+            const container = document.getElementById('devLogs');
+            const entry = document.createElement('div');
+            entry.className = 'log-' + nivel;
+            const time = new Date().toLocaleTimeString();
+            entry.innerText = `[${time}] [${nivel}] ${mensaje}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function limpiarLogs() {
+            document.getElementById('devLogs').innerHTML = '';
+        }
+
+        function reintentar() {
+            if (window.AndroidBridge && window.AndroidBridge.reintentarInit) {
+                agregarDevLog('INFO', 'Solicitando reinicio del motor...');
+                window.AndroidBridge.reintentarInit();
+            }
+        }
+
         function motorListo() {
             document.getElementById('status').innerText = "Listo para descargar";
-            document.getElementById('btnDescargar').disabled = false;
+            document.getElementById('btn').disabled = false;
+            agregarDevLog('SUCCESS', 'Motor marcado como listo para recibir comandos.');
         }
 
-        // Envía la URL hacia Java mediante AndroidBridge
-        function procesarUrl() {
-            const urlInput = document.getElementById('urlInput');
-            const url = urlInput.value.trim();
-
-            if (!url) {
-                if (window.AndroidBridge) {
-                    window.AndroidBridge.mostrarToast("Por favor ingresa una URL válida");
-                } else {
-                    alert("Por favor ingresa una URL válida");
-                }
-                return;
-            }
-
-            document.getElementById('btnDescargar').disabled = true;
-
-            if (window.AndroidBridge) {
-                window.AndroidBridge.iniciarDescarga(url);
-            } else {
-                actualizarProgreso(0, "Error: AndroidBridge no disponible");
-            }
+        function descargar() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return;
+            document.getElementById('btn').disabled = true;
+            if (window.AndroidBridge) window.AndroidBridge.iniciarDescarga(url);
         }
 
-        // Funciones de actualización invocadas desde evaluateJavascript en MainActivity
-        function actualizarProgreso(porcentaje, mensaje) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerText = mensaje;
+        function actualizarProgreso(pct, msg) { document.getElementById('status').innerText = msg; }
+        function descargaCompletada(msg) { 
+            document.getElementById('status').innerText = "✓ " + msg; 
+            document.getElementById('btn').disabled = false;
         }
-
-        function descargaCompletada(mensaje) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerText = "✓ " + mensaje;
-            document.getElementById('btnDescargar').disabled = false;
-            document.getElementById('urlInput').value = "";
-        }
-
-        function errorDescarga(mensajeError) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerText = mensajeError;
-            document.getElementById('btnDescargar').disabled = false;
+        function errorDescarga(err) { 
+            document.getElementById('status').innerText = err; 
+            document.getElementById('btn').disabled = false;
         }
     </script>
 </body>
