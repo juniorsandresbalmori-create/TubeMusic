@@ -7,7 +7,6 @@
 
     <application
         android:allowBackup="true"
-        android:extractNativeLibs="true"
         android:icon="@drawable/ic_logo_purple"
         android:label="TubeMusic"
         android:supportsRtl="true"
