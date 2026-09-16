@@ -60,24 +60,37 @@ public class MainActivity extends AppCompatActivity {
         workDir = new File(getExternalFilesDir(null), "audio");
         if (!workDir.exists()) workDir.mkdirs();
 
-        inicializarMotor();
-
         webView.loadUrl("file:///android_asset/index.html");
+        
+        // Se ejecuta la inicialización para permitir que la WebView cargue primero la consola Dev
+        webView.postDelayed(this::inicializarMotor, 500);
+    }
+
+    private void logDev(String nivel, String mensaje) {
+        Log.i(TAG, "[" + nivel + "] " + mensaje);
+        runOnUiThread(() -> enviarComandoJS("agregarDevLog('" + nivel + "', '" + escapeJs(mensaje) + "')"));
     }
 
     private void inicializarMotor() {
         new Thread(() -> {
             try {
+                logDev("INFO", "Probando acceso a directorio de trabajo: " + workDir.getAbsolutePath());
+                
+                logDev("INFO", "Iniciando FFmpeg...");
                 FFmpeg.getInstance().init(getApplicationContext());
+                logDev("SUCCESS", "FFmpeg inicializado correctamente.");
+
+                logDev("INFO", "Iniciando YoutubeDL...");
                 YoutubeDL.getInstance().init(getApplicationContext());
+                logDev("SUCCESS", "YoutubeDL inicializado correctamente.");
+
                 isEngineReady = true;
-                Log.i(TAG, "Motor local listo");
                 runOnUiThread(() -> enviarComandoJS("motorListo()"));
             } catch (Exception e) {
                 isEngineReady = false;
-                Log.e(TAG, "Error inicializando motor local", e);
-                String err = e.getMessage() != null ? e.getMessage() : e.toString();
-                runOnUiThread(() -> enviarComandoJS("errorDescarga('Error de inicialización: " + escapeJs(err) + "')"));
+                String stackTrace = Log.getStackTraceString(e);
+                logDev("ERROR", "Fallo critico en inicializacion:\n" + stackTrace);
+                runOnUiThread(() -> enviarComandoJS("errorDescarga('Error de inicialización: " + escapeJs(e.getMessage()) + "')"));
             }
         }).start();
     }
@@ -92,12 +105,19 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void iniciarDescarga(String url) {
             if (!isEngineReady) {
-                runOnUiThread(() -> enviarComandoJS("errorDescarga('El motor aún se está inicializando...')"));
-                inicializarMotor();
+                logDev("WARN", "Intento de descarga con motor inactivo.");
+                runOnUiThread(() -> enviarComandoJS("errorDescarga('El motor aún no está listo...')"));
                 return;
             }
+            logDev("INFO", "Solicitando descarga: " + url);
             runOnUiThread(() -> enviarComandoJS("actualizarProgreso(0, 'Preparando descarga...')"));
             procesarDescargaLocal(url);
+        }
+
+        @JavascriptInterface
+        public void reintentarInit() {
+            logDev("INFO", "Reintentando inicializacion manual...");
+            inicializarMotor();
         }
 
         @JavascriptInterface
@@ -118,7 +138,10 @@ public class MainActivity extends AppCompatActivity {
 
     private static String escapeJs(String s) {
         if (s == null) return "error desconocido";
-        return s.replace("\\", "\\\\").replace("'", "\\'");
+        return s.replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", "\\n")
+                .replace("\r", "");
     }
 
     private void procesarDescargaLocal(String youtubeUrl) {
@@ -136,10 +159,14 @@ public class MainActivity extends AppCompatActivity {
                 request.addOption("--no-playlist");
                 request.addOption("-o", plantilla);
 
+                logDev("INFO", "Ejecutando orden yt-dlp...");
                 YoutubeDL.getInstance().execute(request, processId, new Function3<Float, Long, String, Unit>() {
                     @Override
                     public Unit invoke(Float progress, Long etaInSeconds, String line) {
                         int pct = (int) (progress * 100);
+                        if (line != null && !line.trim().isEmpty()) {
+                            logDev("YTDL", line);
+                        }
                         runOnUiThread(() -> enviarComandoJS(
                                 "actualizarProgreso(" + pct + ", 'Descargando y convirtiendo... " + pct + "%')"));
                         return Unit.INSTANCE;
@@ -156,16 +183,16 @@ public class MainActivity extends AppCompatActivity {
                     throw new Exception("El motor local no generó ningún MP3");
                 }
 
-                String titulo = processId;
-                publicarEnMediaStore(outFile, titulo);
+                logDev("SUCCESS", "Archivo procesado: " + outFile.getAbsolutePath());
+                publicarEnMediaStore(outFile, processId);
 
                 runOnUiThread(() -> {
                     enviarComandoJS("actualizarProgreso(100, 'Listo')");
-                    enviarComandoJS("descargaCompletada('Guardado en Música - " + titulo + ".mp3')");
+                    enviarComandoJS("descargaCompletada('Guardado en Música - " + processId + ".mp3')");
                 });
 
             } catch (Exception e) {
-                Log.e(TAG, "Error en descarga local", e);
+                logDev("ERROR", "Fallo en ejecucion yt-dlp:\n" + Log.getStackTraceString(e));
                 runOnUiThread(() -> enviarComandoJS("errorDescarga('" + escapeJs(e.getMessage()) + "')"));
             }
         }).start();
@@ -200,10 +227,11 @@ public class MainActivity extends AppCompatActivity {
             while ((len = fis.read(buffer)) > 0) {
                 os.write(buffer, 0, len);
             }
+            logDev("SUCCESS", "Copiado a MediaStore correctamente.");
         } catch (Exception e) {
-            Log.e(TAG, "Error copiando a MediaStore", e);
+            logDev("ERROR", "Fallo al copiar a MediaStore:\n" + Log.getStackTraceString(e));
         } finally {
             mp3.delete();
         }
     }
-}
+        }
