@@ -61,7 +61,7 @@ public class MainActivity extends AppCompatActivity {
         if (!workDir.exists()) workDir.mkdirs();
 
         webView.loadUrl("file:///android_asset/index.html");
-        
+
         webView.postDelayed(this::inicializarMotor, 500);
     }
 
@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 logDev("INFO", "Directorio de trabajo: " + workDir.getAbsolutePath());
-                
+
                 logDev("INFO", "Iniciando FFmpeg...");
                 FFmpeg.getInstance().init(getApplicationContext());
                 logDev("SUCCESS", "FFmpeg inicializado.");
@@ -84,10 +84,7 @@ public class MainActivity extends AppCompatActivity {
                 logDev("SUCCESS", "YoutubeDL inicializado.");
 
                 logDev("INFO", "Descargando ultima version de yt-dlp desde GitHub...");
-                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
-                        getApplicationContext(), 
-                        YoutubeDL.UpdateChannel.STABLE
-                );
+                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getApplicationContext());
                 logDev("SUCCESS", "yt-dlp actualizado correctamente (" + status + ").");
 
                 isEngineReady = true;
@@ -241,5 +238,4 @@ public class MainActivity extends AppCompatActivity {
             mp3.delete();
         }
     }
-                    }
-                   
+                            }
