@@ -84,7 +84,10 @@ public class MainActivity extends AppCompatActivity {
                 logDev("SUCCESS", "YoutubeDL inicializado.");
 
                 logDev("INFO", "Descargando ultima version de yt-dlp desde GitHub...");
-                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getApplicationContext());
+                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
+                        getApplicationContext(),
+                        YoutubeDL.UpdateChannel.values()[0]
+                );
                 logDev("SUCCESS", "yt-dlp actualizado correctamente (" + status + ").");
 
                 isEngineReady = true;
@@ -238,4 +241,4 @@ public class MainActivity extends AppCompatActivity {
             mp3.delete();
         }
     }
-                            }
+                }
