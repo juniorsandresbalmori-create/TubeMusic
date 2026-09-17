@@ -83,13 +83,21 @@ public class MainActivity extends AppCompatActivity {
                 YoutubeDL.getInstance().init(getApplicationContext());
                 logDev("SUCCESS", "YoutubeDL inicializado.");
 
-                logDev("INFO", "Descargando ultima version de yt-dlp desde GitHub...");
-                // Se pasa null como segundo parámetro para que tome el canal STABLE por defecto
-                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
-                        getApplicationContext(),
-                        null
-                );
-                logDev("SUCCESS", "yt-dlp actualizado correctamente (" + status + ").");
+                try {
+                    logDev("INFO", "Descargando ultima version de yt-dlp desde GitHub...");
+                    YoutubeDL.UpdateChannel[] canales = YoutubeDL.UpdateChannel.class.getEnumConstants();
+                    if (canales != null && canales.length > 0) {
+                        YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
+                                getApplicationContext(),
+                                canales[0]
+                        );
+                        logDev("SUCCESS", "yt-dlp actualizado correctamente (" + status + ").");
+                    } else {
+                        logDev("WARN", "No se pudo obtener el canal de actualización.");
+                    }
+                } catch (Exception updateEx) {
+                    logDev("WARN", "No se pudo actualizar yt-dlp, se usará la versión base: " + updateEx.getMessage());
+                }
 
                 isEngineReady = true;
                 runOnUiThread(() -> enviarComandoJS("motorListo()"));
@@ -242,4 +250,5 @@ public class MainActivity extends AppCompatActivity {
             mp3.delete();
         }
     }
-                                                }
+                        }
+                
