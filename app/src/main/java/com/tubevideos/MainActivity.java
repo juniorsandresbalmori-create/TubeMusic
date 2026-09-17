@@ -84,9 +84,10 @@ public class MainActivity extends AppCompatActivity {
                 logDev("SUCCESS", "YoutubeDL inicializado.");
 
                 logDev("INFO", "Descargando ultima version de yt-dlp desde GitHub...");
+                // Se pasa null como segundo parámetro para que tome el canal STABLE por defecto
                 YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
                         getApplicationContext(),
-                        YoutubeDL.UpdateChannel.values()[0]
+                        null
                 );
                 logDev("SUCCESS", "yt-dlp actualizado correctamente (" + status + ").");
 
@@ -241,4 +242,4 @@ public class MainActivity extends AppCompatActivity {
             mp3.delete();
         }
     }
-}
+                                                }
