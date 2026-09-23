@@ -1,21 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    package="com.tubevideos">
 
+    <!-- Permisos de red (obligatorios para conectar con la VPS) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Permiso de escritura legacy para compatibilidad con Android 9 (API 28) o inferior -->
+    <uses-permission 
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="28" />
+
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_logo_purple"
-        android:label="TubeMusic"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-
-        <!-- ID de prueba oficial de Google AdMob -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:usesCleartextTraffic="true"> <!-- CRÍTICO: Permite tráfico HTTP sin SSL hacia la VPS -->
 
         <activity
             android:name=".MainActivity"
@@ -25,6 +28,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
     </application>
 
 </manifest>
