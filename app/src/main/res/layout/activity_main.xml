@@ -35,7 +35,7 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <!-- Banner AdMob de Prueba en el pie de pantalla -->
+    <!-- Banner de AdMob de prueba -->
     <com.google.android.gms.ads.AdView
         android:id="@+id/adView"
         android:layout_width="match_parent"
