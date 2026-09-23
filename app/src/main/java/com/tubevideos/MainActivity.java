@@ -1,254 +1,157 @@
 package com.tubevideos;
 
-import android.content.ContentValues;
-import android.content.Context;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.provider.MediaStore;
-import android.util.Log;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.yausername.ffmpeg.FFmpeg;
-import com.yausername.youtubedl_android.YoutubeDL;
-import com.yausername.youtubedl_android.YoutubeDLRequest;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.MobileAds;
+
+import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.UUID;
-
-import kotlin.Unit;
-import kotlin.jvm.functions.Function3;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "TubeMusic";
-    private WebView webView;
-    private File workDir;
-    private boolean isEngineReady = false;
+    // Endpoint en tu VPS de Ubuntu
+    private static final String VPS_DOWNLOAD_URL = "http://45.236.130.86:5000/download";
+
+    private EditText etYoutubeUrl;
+    private Button btnDownload;
+    private ProgressBar progressBar;
+    private AdView adView;
+
+    // Manejo de hilos en segundo plano para peticiones de red
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        webView = findViewById(R.id.webView);
+        // 1. Vinculación de vistas
+        etYoutubeUrl = findViewById(R.id.etYoutubeUrl);
+        btnDownload = findViewById(R.id.btnDownload);
+        progressBar = findViewById(R.id.progressBar);
+        adView = findViewById(R.id.adView);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            WebView.setWebContentsDebuggingEnabled(true);
+        // 2. Inicialización de Google AdMob
+        MobileAds.initialize(this, initializationStatus -> {});
+        if (adView != null) {
+            AdRequest adRequest = new AdRequest.Builder().build();
+            adView.loadAd(adRequest);
         }
 
-        WebSettings ws = webView.getSettings();
-        ws.setJavaScriptEnabled(true);
-        ws.setDomStorageEnabled(true);
-        ws.setAllowFileAccess(true);
-        ws.setAllowContentAccess(true);
-
-        webView.setWebViewClient(new WebViewClient());
-        webView.setWebChromeClient(new WebChromeClient());
-        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
-
-        workDir = new File(getExternalFilesDir(null), "audio");
-        if (!workDir.exists()) workDir.mkdirs();
-
-        webView.loadUrl("file:///android_asset/index.html");
-
-        webView.postDelayed(this::inicializarMotor, 500);
-    }
-
-    private void logDev(String nivel, String mensaje) {
-        Log.i(TAG, "[" + nivel + "] " + mensaje);
-        runOnUiThread(() -> enviarComandoJS("agregarDevLog('" + nivel + "', '" + escapeJs(mensaje) + "')"));
-    }
-
-    private void inicializarMotor() {
-        new Thread(() -> {
-            try {
-                logDev("INFO", "Directorio de trabajo: " + workDir.getAbsolutePath());
-
-                logDev("INFO", "Iniciando FFmpeg...");
-                FFmpeg.getInstance().init(getApplicationContext());
-                logDev("SUCCESS", "FFmpeg inicializado.");
-
-                logDev("INFO", "Iniciando YoutubeDL...");
-                YoutubeDL.getInstance().init(getApplicationContext());
-                logDev("SUCCESS", "YoutubeDL inicializado.");
-
-                try {
-                    logDev("INFO", "Descargando ultima version de yt-dlp desde GitHub...");
-                    YoutubeDL.UpdateChannel[] canales = YoutubeDL.UpdateChannel.class.getEnumConstants();
-                    if (canales != null && canales.length > 0) {
-                        YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
-                                getApplicationContext(),
-                                canales[0]
-                        );
-                        logDev("SUCCESS", "yt-dlp actualizado correctamente (" + status + ").");
-                    } else {
-                        logDev("WARN", "No se pudo obtener el canal de actualización.");
-                    }
-                } catch (Exception updateEx) {
-                    logDev("WARN", "No se pudo actualizar yt-dlp, se usará la versión base: " + updateEx.getMessage());
-                }
-
-                isEngineReady = true;
-                runOnUiThread(() -> enviarComandoJS("motorListo()"));
-            } catch (Exception e) {
-                isEngineReady = false;
-                String stackTrace = Log.getStackTraceString(e);
-                logDev("ERROR", "Fallo critico en inicializacion:\n" + stackTrace);
-                runOnUiThread(() -> enviarComandoJS("errorDescarga('Error de inicialización: " + escapeJs(e.getMessage()) + "')"));
+        // 3. Listener del botón de descarga
+        btnDownload.setOnClickListener(v -> {
+            String url = etYoutubeUrl.getText().toString().trim();
+            if (url.isEmpty()) {
+                Toast.makeText(MainActivity.this, "Por favor, ingresa un enlace de YouTube", Toast.LENGTH_SHORT).show();
+            } else {
+                startAudioDownload(url);
             }
-        }).start();
+        });
     }
 
-    public class WebAppInterface {
-        Context mContext;
+    private void startAudioDownload(String videoUrl) {
+        // Bloquear interfaz y mostrar indicador de progreso
+        progressBar.setVisibility(View.VISIBLE);
+        btnDownload.setEnabled(false);
 
-        WebAppInterface(Context c) {
-            mContext = c;
-        }
-
-        @JavascriptInterface
-        public void iniciarDescarga(String url) {
-            if (!isEngineReady) {
-                logDev("WARN", "Intento de descarga con motor inactivo.");
-                runOnUiThread(() -> enviarComandoJS("errorDescarga('El motor aún no está listo...')"));
-                return;
-            }
-            logDev("INFO", "Solicitando descarga: " + url);
-            runOnUiThread(() -> enviarComandoJS("actualizarProgreso(0, 'Preparando descarga...')"));
-            procesarDescargaLocal(url);
-        }
-
-        @JavascriptInterface
-        public void reintentarInit() {
-            logDev("INFO", "Reintentando inicialización manual...");
-            inicializarMotor();
-        }
-
-        @JavascriptInterface
-        public void mostrarToast(String msg) {
-            runOnUiThread(() -> toast(msg));
-        }
-    }
-
-    private void toast(String msg) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-    }
-
-    private void enviarComandoJS(String comando) {
-        if (webView != null) {
-            webView.evaluateJavascript("javascript:" + comando, null);
-        }
-    }
-
-    private static String escapeJs(String s) {
-        if (s == null) return "error desconocido";
-        return s.replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("\n", "\\n")
-                .replace("\r", "");
-    }
-
-    private void procesarDescargaLocal(String youtubeUrl) {
-        new Thread(() -> {
-            String processId = UUID.randomUUID().toString();
+        executor.execute(() -> {
+            boolean success = false;
+            String message;
 
             try {
-                String plantilla = new File(workDir, processId + ".%(ext)s").getAbsolutePath();
+                // Configurar conexión HTTP POST hacia la VPS
+                URL url = new URL(VPS_DOWNLOAD_URL);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                conn.setRequestProperty("Accept", "audio/mpeg");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(120000); // 2 min para permitir la conversión en la VPS
 
-                YoutubeDLRequest request = new YoutubeDLRequest(youtubeUrl);
-                request.addOption("-f", "bestaudio/best");
-                request.addOption("--extract-audio");
-                request.addOption("--audio-format", "mp3");
-                request.addOption("--audio-quality", "0");
-                request.addOption("--no-playlist");
-                request.addOption("--extractor-args", "youtube:player_client=mweb,ios,tv");
-                request.addOption("-o", plantilla);
+                // Cuerpo JSON de la petición
+                JSONObject jsonParam = new JSONObject();
+                jsonParam.put("url", videoUrl);
 
-                logDev("INFO", "Ejecutando ejecutable yt-dlp...");
-                YoutubeDL.getInstance().execute(request, processId, new Function3<Float, Long, String, Unit>() {
-                    @Override
-                    public Unit invoke(Float progress, Long etaInSeconds, String line) {
-                        int pct = (int) (progress * 100);
-                        if (line != null && !line.trim().isEmpty()) {
-                            logDev("YTDL", line);
-                        }
-                        runOnUiThread(() -> enviarComandoJS(
-                                "actualizarProgreso(" + pct + ", 'Descargando y convirtiendo... " + pct + "%')"));
-                        return Unit.INSTANCE;
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonParam.toString().getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+
+                int responseCode = conn.getResponseCode();
+
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    // Guardar el flujo de audio devuelto en la carpeta 'Download' pública del dispositivo
+                    File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    if (!downloadDir.exists()) {
+                        downloadDir.mkdirs();
                     }
-                });
 
-                File outFile = null;
-                File[] candidatos = workDir.listFiles((d, n) -> n.startsWith(processId) && n.endsWith(".mp3"));
-                if (candidatos != null && candidatos.length > 0) {
-                    outFile = candidatos[0];
+                    String fileName = "TubeMusic_" + System.currentTimeMillis() + ".mp3";
+                    File outputFile = new File(downloadDir, fileName);
+
+                    try (InputStream inputStream = conn.getInputStream();
+                         FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = inputStream.read(buffer)) != -1) {
+                            outputStream.write(buffer, 0, bytesRead);
+                        }
+                    }
+
+                    success = true;
+                    message = "Descarga completada: " + fileName;
+                } else {
+                    message = "Error del servidor VPS (Código HTTP: " + responseCode + ")";
                 }
 
-                if (outFile == null || !outFile.exists()) {
-                    throw new Exception("El motor local no generó ningún MP3");
-                }
-
-                logDev("SUCCESS", "Archivo listo: " + outFile.getAbsolutePath());
-                publicarEnMediaStore(outFile, processId);
-
-                runOnUiThread(() -> {
-                    enviarComandoJS("actualizarProgreso(100, 'Listo')");
-                    enviarComandoJS("descargaCompletada('Guardado en Música - " + processId + ".mp3')");
-                });
+                conn.disconnect();
 
             } catch (Exception e) {
-                logDev("ERROR", "Fallo en ejecucion yt-dlp:\n" + Log.getStackTraceString(e));
-                runOnUiThread(() -> enviarComandoJS("errorDescarga('" + escapeJs(e.getMessage()) + "')"));
+                message = "Error de red: " + e.getLocalizedMessage();
             }
-        }).start();
+
+            // Actualizar elementos de interfaz en el hilo principal
+            final boolean finalSuccess = success;
+            final String finalMessage = message;
+
+            mainHandler.post(() -> {
+                progressBar.setVisibility(View.GONE);
+                btnDownload.setEnabled(true);
+                Toast.makeText(MainActivity.this, finalMessage, Toast.LENGTH_LONG).show();
+
+                if (finalSuccess) {
+                    etYoutubeUrl.setText("");
+                }
+            });
+        });
     }
 
-    private void publicarEnMediaStore(File mp3, String titulo) {
-        Uri collection;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-        } else {
-            collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-        }
-
-        ContentValues values = new ContentValues();
-        values.put(MediaStore.Audio.Media.DISPLAY_NAME, titulo + ".mp3");
-        values.put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg");
-        values.put(MediaStore.Audio.Media.IS_MUSIC, 1);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            values.put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC);
-        }
-
-        Uri itemUri = getContentResolver().insert(collection, values);
-        if (itemUri == null) {
-            mp3.delete();
-            return;
-        }
-
-        try (OutputStream os = getContentResolver().openOutputStream(itemUri);
-             FileInputStream fis = new FileInputStream(mp3)) {
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = fis.read(buffer)) > 0) {
-                os.write(buffer, 0, len);
-            }
-            logDev("SUCCESS", "Guardado en MediaStore exitosamente.");
-        } catch (Exception e) {
-            logDev("ERROR", "Fallo al copiar a MediaStore:\n" + Log.getStackTraceString(e));
-        } finally {
-            mp3.delete();
-        }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdown();
     }
-                        }
-                
+    }
