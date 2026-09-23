@@ -2,11 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tubevideos">
 
-    <!-- Permisos de red (obligatorios para conectar con la VPS) -->
+    <!-- Permisos de red para comunicar con la VPS -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Permiso de escritura legacy para compatibilidad con Android 9 (API 28) o inferior -->
+    <!-- Permiso de almacenamiento heredado para Android 9 (API 28) o inferior -->
     <uses-permission 
         android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
         android:maxSdkVersion="28" />
@@ -18,7 +18,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-        android:usesCleartextTraffic="true"> <!-- CRÍTICO: Permite tráfico HTTP sin SSL hacia la VPS -->
+        android:usesCleartextTraffic="true"> <!-- Permite tráfico HTTP claro a la VPS -->
+
+        <!-- ID de aplicación de prueba oficial de Google AdMob -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
 
         <activity
             android:name=".MainActivity"
