@@ -1,157 +1,140 @@
 package com.tubevideos;
 
+import android.app.DownloadManager;
+import android.content.Context;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ProgressBar;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
-
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.MobileAds;
 
 import org.json.JSONObject;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Endpoint en tu VPS de Ubuntu
-    private static final String VPS_DOWNLOAD_URL = "http://45.236.130.86:5000/download";
-
-    private EditText etYoutubeUrl;
-    private Button btnDownload;
-    private ProgressBar progressBar;
-    private AdView adView;
-
-    // Manejo de hilos en segundo plano para peticiones de red
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private WebView webView;
+    // La IP de tu VPS
+    private static final String SERVER_URL = "http://45.236.130.86:5000/download";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 1. Vinculación de vistas
-        etYoutubeUrl = findViewById(R.id.etYoutubeUrl);
-        btnDownload = findViewById(R.id.btnDownload);
-        progressBar = findViewById(R.id.progressBar);
-        adView = findViewById(R.id.adView);
+        webView = findViewById(R.id.webView);
 
-        // 2. Inicialización de Google AdMob
-        MobileAds.initialize(this, initializationStatus -> {});
-        if (adView != null) {
-            AdRequest adRequest = new AdRequest.Builder().build();
-            adView.loadAd(adRequest);
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
+
+        // Exponer la interfaz 'AndroidBridge' para ser llamada desde JavaScript (index.html)
+        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
+        webView.setWebViewClient(new WebViewClient());
+
+        // Cargar la interfaz HTML local
+        webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    // Clase puente de comunicación JS <-> Java
+    public class WebAppInterface {
+        Context mContext;
+
+        WebAppInterface(Context c) {
+            mContext = c;
         }
 
-        // 3. Listener del botón de descarga
-        btnDownload.setOnClickListener(v -> {
-            String url = etYoutubeUrl.getText().toString().trim();
-            if (url.isEmpty()) {
-                Toast.makeText(MainActivity.this, "Por favor, ingresa un enlace de YouTube", Toast.LENGTH_SHORT).show();
-            } else {
-                startAudioDownload(url);
+        @JavascriptInterface
+        public void startDownload(String youtubeUrl) {
+            if (youtubeUrl == null || youtubeUrl.trim().isEmpty()) {
+                runOnUiThread(() -> Toast.makeText(mContext, "Por favor ingresa una URL válida", Toast.LENGTH_SHORT).show());
+                return;
             }
-        });
-    }
 
-    private void startAudioDownload(String videoUrl) {
-        // Bloquear interfaz y mostrar indicador de progreso
-        progressBar.setVisibility(View.VISIBLE);
-        btnDownload.setEnabled(false);
+            runOnUiThread(() -> Toast.makeText(mContext, "Obteniendo enlace de la VPS...", Toast.LENGTH_SHORT).show());
 
-        executor.execute(() -> {
-            boolean success = false;
-            String message;
+            // Petición a la VPS en hilo secundario
+            Executors.newSingleThreadExecutor().execute(() -> {
+                try {
+                    URL url = new URL(SERVER_URL);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(15000);
+                    conn.setDoOutput(true);
 
-            try {
-                // Configurar conexión HTTP POST hacia la VPS
-                URL url = new URL(VPS_DOWNLOAD_URL);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json; utf-8");
-                conn.setRequestProperty("Accept", "audio/mpeg");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(120000); // 2 min para permitir la conversión en la VPS
+                    String jsonInputString = "{\"url\": \"" + youtubeUrl + "\"}";
 
-                // Cuerpo JSON de la petición
-                JSONObject jsonParam = new JSONObject();
-                jsonParam.put("url", videoUrl);
-
-                try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonParam.toString().getBytes("utf-8");
-                    os.write(input, 0, input.length);
-                }
-
-                int responseCode = conn.getResponseCode();
-
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    // Guardar el flujo de audio devuelto en la carpeta 'Download' pública del dispositivo
-                    File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                    if (!downloadDir.exists()) {
-                        downloadDir.mkdirs();
+                    try (OutputStream os = conn.getOutputStream()) {
+                        byte[] input = jsonInputString.getBytes("utf-8");
+                        os.write(input, 0, input.length);
                     }
 
-                    String fileName = "TubeMusic_" + System.currentTimeMillis() + ".mp3";
-                    File outputFile = new File(downloadDir, fileName);
+                    int responseCode = conn.getResponseCode();
 
-                    try (InputStream inputStream = conn.getInputStream();
-                         FileOutputStream outputStream = new FileOutputStream(outputFile)) {
-
-                        byte[] buffer = new byte[4096];
-                        int bytesRead;
-                        while ((bytesRead = inputStream.read(buffer)) != -1) {
-                            outputStream.write(buffer, 0, bytesRead);
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+                        StringBuilder response = new StringBuilder();
+                        String responseLine;
+                        while ((responseLine = br.readLine()) != null) {
+                            response.append(responseLine.trim());
                         }
+
+                        JSONObject jsonResponse = new JSONObject(response.toString());
+                        String status = jsonResponse.optString("status");
+
+                        if ("success".equals(status)) {
+                            String streamUrl = jsonResponse.getString("stream_url");
+                            String title = jsonResponse.optString("title", "Audio");
+                            String ext = jsonResponse.optString("ext", "webm");
+
+                            // Iniciar descarga nativa en el dispositivo
+                            descargarEnDispositivo(streamUrl, title, ext);
+                        } else {
+                            mostrarError("Error al procesar la URL en la VPS");
+                        }
+                    } else {
+                        mostrarError("Error de servidor: HTTP " + responseCode);
                     }
 
-                    success = true;
-                    message = "Descarga completada: " + fileName;
-                } else {
-                    message = "Error del servidor VPS (Código HTTP: " + responseCode + ")";
-                }
-
-                conn.disconnect();
-
-            } catch (Exception e) {
-                message = "Error de red: " + e.getLocalizedMessage();
-            }
-
-            // Actualizar elementos de interfaz en el hilo principal
-            final boolean finalSuccess = success;
-            final String finalMessage = message;
-
-            mainHandler.post(() -> {
-                progressBar.setVisibility(View.GONE);
-                btnDownload.setEnabled(true);
-                Toast.makeText(MainActivity.this, finalMessage, Toast.LENGTH_LONG).show();
-
-                if (finalSuccess) {
-                    etYoutubeUrl.setText("");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    mostrarError("Error de conexión: " + e.getMessage());
                 }
             });
-        });
+        }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executor.shutdown();
+    private void descargarEnDispositivo(String downloadUrl, String title, String extension) {
+        String nombreLimpio = title.replaceAll("[\\\\/:*?\"<>|]", "_");
+        String nombreArchivo = nombreLimpio + "." + extension;
+
+        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
+        request.setTitle(title);
+        request.setDescription("Descargando canción...");
+        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, nombreArchivo);
+
+        DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+        if (manager != null) {
+            manager.enqueue(request);
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Descarga iniciada: " + title, Toast.LENGTH_LONG).show());
+        }
     }
+
+    private void mostrarError(String mensaje) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_LONG).show());
     }
+                                                   }
