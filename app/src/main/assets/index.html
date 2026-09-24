@@ -5,103 +5,132 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TubeMusic</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        body { background-color: #121212; color: #fff; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        .main-content { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-        .container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
-        h1 { color: #8B5CF6; font-size: 26px; }
-        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #1e1e1e; color: #fff; outline: none; }
-        button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #8B5CF6; color: white; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #4c3782; }
-        .status { padding: 10px; border-radius: 6px; background: #1e1e1e; color: #aaa; font-size: 13px; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
-        /* Panel Dev */
-        .dev-panel { height: 220px; background-color: #0d0d0d; border-top: 2px solid #8B5CF6; display: flex; flex-direction: column; font-family: monospace; font-size: 11px; }
-        .dev-header { background: #181818; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
-        .dev-title { color: #8B5CF6; font-weight: bold; }
-        .dev-btn { background: #333; color: #fff; border: none; padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; }
-        .dev-logs { flex: 1; padding: 8px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
-        
-        .log-INFO { color: #60a5fa; }
-        .log-SUCCESS { color: #4ade80; }
-        .log-WARN { color: #facc15; }
-        .log-ERROR { color: #f87171; }
-        .log-YTDL { color: #c084fc; }
+        body {
+            background-color: #0f0f13;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            background: #1a1a24;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            color: #bb86fc;
+        }
+
+        p {
+            font-size: 0.9rem;
+            color: #a0a0b0;
+            margin-bottom: 24px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid #333345;
+            background-color: #0f0f13;
+            color: #fff;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #bb86fc;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background-color: #bb86fc;
+            color: #000000;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+            background-color: #9955e8;
+        }
+
+        .status-msg {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #03dac6;
+            min-height: 20px;
+        }
     </style>
 </head>
 <body>
 
-    <div class="main-content">
-        <div class="container">
-            <h1>TubeMusic</h1>
-            <input type="text" id="urlInput" placeholder="Pega la URL de YouTube...">
-            <button id="btn" onclick="descargar()">Descargar Audio</button>
-            <div id="status" class="status">Inicializando motor local...</div>
-        </div>
-    </div>
+    <div class="container">
+        <h1>TubeMusic</h1>
+        <p>Ingresa el enlace de YouTube para descargar el audio</p>
 
-    <!-- Consola tipo DevTools -->
-    <div class="dev-panel">
-        <div class="dev-header">
-            <span class="dev-title">CONSOLE LOG</span>
-            <div>
-                <button class="dev-btn" onclick="reintentar()">Reintentar Init</button>
-                <button class="dev-btn" onclick="limpiarLogs()">Limpiar</button>
-            </div>
+        <div class="input-group">
+            <input type="text" id="youtubeUrl" placeholder="https://youtu.be/..." autocomplete="off">
+            <button onclick="procesarDescarga()">Descargar Audio</button>
         </div>
-        <div id="devLogs" class="dev-logs"></div>
+
+        <div id="status" class="status-msg"></div>
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            document.getElementById('btn').disabled = true;
-            agregarDevLog('INFO', 'Interfaz Web lista. Esperando respuestas nativas...');
-        });
+        function procesarDescarga() {
+            const urlInput = document.getElementById('youtubeUrl').value.trim();
+            const statusDiv = document.getElementById('status');
 
-        function agregarDevLog(nivel, mensaje) {
-            const container = document.getElementById('devLogs');
-            const entry = document.createElement('div');
-            entry.className = 'log-' + nivel;
-            const time = new Date().toLocaleTimeString();
-            entry.innerText = `[${time}] [${nivel}] ${mensaje}`;
-            container.appendChild(entry);
-            container.scrollTop = container.scrollHeight;
-        }
+            if (!urlInput) {
+                statusDiv.style.color = '#cf6679';
+                statusDiv.innerText = 'Por favor, pega un enlace válido.';
+                return;
+            }
 
-        function limpiarLogs() {
-            document.getElementById('devLogs').innerHTML = '';
-        }
+            statusDiv.style.color = '#03dac6';
+            statusDiv.innerText = 'Enviando a procesar...';
 
-        function reintentar() {
-            if (window.AndroidBridge && window.AndroidBridge.reintentarInit) {
-                agregarDevLog('INFO', 'Solicitando reinicio del motor...');
-                window.AndroidBridge.reintentarInit();
+            // Comprobar la disponibilidad del puente de Android
+            if (typeof AndroidBridge !== 'undefined' && AndroidBridge.startDownload) {
+                AndroidBridge.startDownload(urlInput);
+                document.getElementById('youtubeUrl').value = '';
+            } else {
+                statusDiv.style.color = '#cf6679';
+                statusDiv.innerText = 'Error: Conexión con Android no disponible.';
             }
         }
-
-        function motorListo() {
-            document.getElementById('status').innerText = "Listo para descargar";
-            document.getElementById('btn').disabled = false;
-            agregarDevLog('SUCCESS', 'Motor marcado como listo para recibir comandos.');
-        }
-
-        function descargar() {
-            const url = document.getElementById('urlInput').value.trim();
-            if (!url) return;
-            document.getElementById('btn').disabled = true;
-            if (window.AndroidBridge) window.AndroidBridge.iniciarDescarga(url);
-        }
-
-        function actualizarProgreso(pct, msg) { document.getElementById('status').innerText = msg; }
-        function descargaCompletada(msg) { 
-            document.getElementById('status').innerText = "✓ " + msg; 
-            document.getElementById('btn').disabled = false;
-        }
-        function errorDescarga(err) { 
-            document.getElementById('status').innerText = err; 
-            document.getElementById('btn').disabled = false;
-        }
     </script>
+
 </body>
 </html>
