@@ -11,8 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' } // <-- Necesario para NewPipeExtractor
+        maven { url 'https://jitpack.io' }
     }
 }
 
 rootProject.name = "TubeVideos"
+
+include ':app' // <-- ¡Esta línea es la que falta y soluciona el error!
