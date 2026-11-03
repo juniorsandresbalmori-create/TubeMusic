@@ -16,5 +16,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "TubeVideos"
-
-include ':app' // <-- ¡Esta línea es la que falta y soluciona el error!
+include ':app'
