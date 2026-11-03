@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.tubevideos"
-        minSdk 21
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -22,9 +22,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
 
@@ -33,13 +34,9 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     
-    // SDK de anuncios de Google (AdMob)
-    implementation 'com.google.android.gms:play-services-ads:23.0.0'
-
-    // NewPipeExtractor para extracción directa de YouTube
-    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.22.2'
-
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    // Extractor local (Versión corregida sin la "v")
+    implementation 'com.github.TeamNewPipe:NewPipeExtractor:0.22.2'
+    
+    // Anuncios (AdMob)
+    implementation 'com.google.android.gms:ads:22.6.0'
 }
