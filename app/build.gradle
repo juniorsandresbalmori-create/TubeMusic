@@ -34,9 +34,9 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     
-    // Extractor local (Versión corregida sin la "v")
+    // Extractor local de NewPipe (Versión limpia sin la 'v')
     implementation 'com.github.TeamNewPipe:NewPipeExtractor:0.22.2'
     
-    // Anuncios (AdMob)
+    // Google Mobile Ads (AdMob)
     implementation 'com.google.android.gms:ads:22.6.0'
 }
