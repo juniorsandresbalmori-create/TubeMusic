@@ -16,13 +16,11 @@ import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.MobileAds;
 
-import org.json.JSONObject;
+import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.ServiceList;
+import org.schabi.newpipe.extractor.stream.AudioStream;
+import org.schabi.newpipe.extractor.stream.StreamExtractor;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
@@ -32,95 +30,83 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private AdView adView;
 
-    // La IP y endpoint de tu VPS
-    private static final String SERVER_URL = "http://45.236.130.86:5000/download";
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Vincular elementos del XML nativo
+        // Inicializar NewPipeExtractor con nuestro descargador
+        try {
+            NewPipe.init(DownloaderImpl.getInstance());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Vincular elementos de la UI
         etYoutubeUrl = findViewById(R.id.etYoutubeUrl);
         btnDownload = findViewById(R.id.btnDownload);
         progressBar = findViewById(R.id.progressBar);
         adView = findViewById(R.id.adView);
 
-        // Inicializar el SDK de anuncios (AdMob)
+        // Inicializar AdMob
         MobileAds.initialize(this, initializationStatus -> {});
         AdRequest adRequest = new AdRequest.Builder().build();
         adView.loadAd(adRequest);
 
-        // Configurar acción del botón de descarga
+        // Botón de conversión / descarga
         btnDownload.setOnClickListener(v -> {
             String youtubeUrl = etYoutubeUrl.getText().toString().trim();
             if (youtubeUrl.isEmpty()) {
                 Toast.makeText(MainActivity.this, "Por favor ingresa una URL válida", Toast.LENGTH_SHORT).show();
                 return;
             }
-            consultarVpsYDescargar(youtubeUrl);
+            extraerYDescargar(youtubeUrl);
         });
     }
 
-    private void consultarVpsYDescargar(String youtubeUrl) {
-        // Mostrar animación de carga y bloquear el botón mientras procesa
+    private void extraerYDescargar(String youtubeUrl) {
+        // Mostrar barra de carga y bloquear botón
         runOnUiThread(() -> {
             progressBar.setVisibility(View.VISIBLE);
             btnDownload.setEnabled(false);
-            Toast.makeText(MainActivity.this, "Consultando con la VPS...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(MainActivity.this, "Extrayendo audio localmente...", Toast.LENGTH_SHORT).show();
         });
 
-        // Petición HTTP a la VPS en segundo plano
+        // Ejecutar extracción en segundo plano
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
-                URL url = new URL(SERVER_URL);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json; utf-8");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(15000);
-                conn.setDoOutput(true);
+                // Obtener el extractor de YouTube
+                StreamExtractor extractor = ServiceList.YouTube.getStreamExtractor(youtubeUrl);
+                extractor.fetchPage();
 
-                String jsonInputString = "{\"url\": \"" + youtubeUrl + "\"}";
-
-                try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonInputString.getBytes("utf-8");
-                    os.write(input, 0, input.length);
+                String title = extractor.getName();
+                
+                // Buscar el mejor stream de audio disponible
+                AudioStream bestAudio = null;
+                for (AudioStream audioStream : extractor.getAudioStreams()) {
+                    if (bestAudio == null || audioStream.getAverageBitrate() > bestAudio.getAverageBitrate()) {
+                        bestAudio = audioStream;
+                    }
                 }
 
-                int responseCode = conn.getResponseCode();
-
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
-                    StringBuilder response = new StringBuilder();
-                    String responseLine;
-                    while ((responseLine = br.readLine()) != null) {
-                        response.append(responseLine.trim());
+                if (bestAudio != null) {
+                    String streamUrl = bestAudio.getContent();
+                    String ext = bestAudio.getFormat().getName();
+                    if (ext == null || ext.isEmpty()) {
+                        ext = "m4a"; // Extensión por defecto para audio de YouTube
                     }
 
-                    JSONObject jsonResponse = new JSONObject(response.toString());
-                    String status = jsonResponse.optString("status");
-
-                    if ("success".equals(status)) {
-                        String streamUrl = jsonResponse.getString("stream_url");
-                        String title = jsonResponse.optString("title", "Audio");
-                        String ext = jsonResponse.optString("ext", "webm");
-
-                        // Activar la descarga nativa en el dispositivo
-                        descargarEnDispositivo(streamUrl, title, ext);
-                    } else {
-                        mostrarError("Error al procesar la URL en la VPS");
-                    }
+                    // Iniciar descarga nativa en el dispositivo
+                    descargarEnDispositivo(streamUrl, title, ext);
                 } else {
-                    mostrarError("Error de servidor: HTTP " + responseCode);
+                    mostrarError("No se encontraron streams de audio disponibles.");
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
-                mostrarError("Error de conexión: " + e.getMessage());
+                mostrarError("Error al extraer: " + e.getMessage());
             } finally {
-                // Restaurar la interfaz (ocultar barra y habilitar botón)
+                // Restaurar interfaz
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     btnDownload.setEnabled(true);
@@ -135,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
 
         DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
         request.setTitle(title);
-        request.setDescription("Descargando canción de TubeMusic...");
+        request.setDescription("Descargando con TubeMusic...");
         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
         request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, nombreArchivo);
 
@@ -143,8 +129,8 @@ public class MainActivity extends AppCompatActivity {
         if (manager != null) {
             manager.enqueue(request);
             runOnUiThread(() -> {
-                Toast.makeText(MainActivity.this, "¡Descarga iniciada!", Toast.LENGTH_LONG).show();
-                etYoutubeUrl.setText(""); // Limpiar caja de texto
+                Toast.makeText(MainActivity.this, "¡Descarga iniciada con éxito!", Toast.LENGTH_LONG).show();
+                etYoutubeUrl.setText("");
             });
         }
     }
@@ -152,4 +138,4 @@ public class MainActivity extends AppCompatActivity {
     private void mostrarError(String mensaje) {
         runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_LONG).show());
     }
-                    }
+                               }
