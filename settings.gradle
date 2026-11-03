@@ -10,8 +10,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://jitpack.io' } // <-- Indispensable para NewPipeExtractor
     }
 }
 
-rootProject.name = "TubeMusic"
-include ':app'
+rootProject.name = "TubeVideos"
