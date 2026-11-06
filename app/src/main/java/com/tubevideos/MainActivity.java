@@ -1,141 +1,184 @@
 package com.tubevideos;
 
+import android.Manifest;
 import android.app.DownloadManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.text.TextUtils;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.MobileAds;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
 
-import org.schabi.newpipe.extractor.NewPipe;
-import org.schabi.newpipe.extractor.ServiceList;
-import org.schabi.newpipe.extractor.stream.AudioStream;
-import org.schabi.newpipe.extractor.stream.StreamExtractor;
-
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
+    private static final int REQUEST_STORAGE_PERMISSION = 4102;
 
-    private EditText etYoutubeUrl;
-    private Button btnDownload;
+    private TextInputEditText etMediaUrl;
+    private MaterialButton btnDownload;
     private ProgressBar progressBar;
-    private AdView adView;
+    private TextView tvStatus;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private AudioSourceResolver audioSourceResolver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Inicializar NewPipeExtractor con nuestro descargador
-        try {
-            NewPipe.init(DownloaderImpl.getInstance());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // Vincular elementos de la UI
-        etYoutubeUrl = findViewById(R.id.etYoutubeUrl);
+        etMediaUrl = findViewById(R.id.etMediaUrl);
         btnDownload = findViewById(R.id.btnDownload);
         progressBar = findViewById(R.id.progressBar);
-        adView = findViewById(R.id.adView);
+        tvStatus = findViewById(R.id.tvStatus);
 
-        // Inicializar AdMob
-        MobileAds.initialize(this, initializationStatus -> {});
-        AdRequest adRequest = new AdRequest.Builder().build();
-        adView.loadAd(adRequest);
+        // Replace this placeholder with the separately implemented provider.
+        audioSourceResolver = new PendingAudioSourceResolver();
 
-        // Botón de conversión / descarga
-        btnDownload.setOnClickListener(v -> {
-            String youtubeUrl = etYoutubeUrl.getText().toString().trim();
-            if (youtubeUrl.isEmpty()) {
-                Toast.makeText(MainActivity.this, "Por favor ingresa una URL válida", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            extraerYDescargar(youtubeUrl);
-        });
+        btnDownload.setOnClickListener(view -> beginResolve());
     }
 
-    private void extraerYDescargar(String youtubeUrl) {
-        // Mostrar barra de carga y bloquear botón
-        runOnUiThread(() -> {
-            progressBar.setVisibility(View.VISIBLE);
-            btnDownload.setEnabled(false);
-            Toast.makeText(MainActivity.this, "Extrayendo audio localmente...", Toast.LENGTH_SHORT).show();
-        });
+    private void beginResolve() {
+        String input = etMediaUrl.getText() == null ? "" : etMediaUrl.getText().toString().trim();
+        if (TextUtils.isEmpty(input)) {
+            etMediaUrl.setError(getString(R.string.error_empty_url));
+            return;
+        }
 
-        // Ejecutar extracción en segundo plano
-        Executors.newSingleThreadExecutor().execute(() -> {
-            try {
-                // Obtener el extractor de YouTube
-                StreamExtractor extractor = ServiceList.YouTube.getStreamExtractor(youtubeUrl);
-                extractor.fetchPage();
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    REQUEST_STORAGE_PERMISSION);
+            showStatus(getString(R.string.storage_permission));
+            return;
+        }
 
-                String title = extractor.getName();
-                
-                // Buscar el mejor stream de audio disponible
-                AudioStream bestAudio = null;
-                for (AudioStream audioStream : extractor.getAudioStreams()) {
-                    if (bestAudio == null || audioStream.getAverageBitrate() > bestAudio.getAverageBitrate()) {
-                        bestAudio = audioStream;
-                    }
-                }
+        setBusy(true);
+        audioSourceResolver.resolve(input, new AudioSourceResolver.Callback() {
+            @Override
+            public void onResolved(ResolvedAudio audio) {
+                runOnUiThread(() -> enqueueDownload(audio));
+            }
 
-                if (bestAudio != null) {
-                    String streamUrl = bestAudio.getContent();
-                    String ext = bestAudio.getFormat().getName();
-                    if (ext == null || ext.isEmpty()) {
-                        ext = "m4a"; // Extensión por defecto para audio de YouTube
-                    }
-
-                    // Iniciar descarga nativa en el dispositivo
-                    descargarEnDispositivo(streamUrl, title, ext);
-                } else {
-                    mostrarError("No se encontraron streams de audio disponibles.");
-                }
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                mostrarError("Error al extraer: " + e.getMessage());
-            } finally {
-                // Restaurar interfaz
+            @Override
+            public void onError(String message) {
                 runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnDownload.setEnabled(true);
+                    setBusy(false);
+                    showStatus(TextUtils.isEmpty(message)
+                            ? getString(R.string.error_provider_pending) : message);
                 });
             }
         });
     }
 
-    private void descargarEnDispositivo(String downloadUrl, String title, String extension) {
-        String nombreLimpio = title.replaceAll("[\\\\/:*?\"<>|]", "_");
-        String nombreArchivo = nombreLimpio + "." + extension;
+    private void enqueueDownload(ResolvedAudio audio) {
+        if (audio == null || audio.getDownloadUrl() == null) {
+            setBusy(false);
+            showStatus(getString(R.string.error_invalid_media_url));
+            return;
+        }
 
-        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
-        request.setTitle(title);
-        request.setDescription("Descargando con TubeMusic...");
-        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, nombreArchivo);
+        Uri uri;
+        try {
+            uri = Uri.parse(audio.getDownloadUrl());
+        } catch (Exception exception) {
+            setBusy(false);
+            showStatus(getString(R.string.error_invalid_media_url));
+            return;
+        }
 
-        DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-        if (manager != null) {
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || TextUtils.isEmpty(uri.getHost())) {
+            setBusy(false);
+            showStatus(getString(R.string.error_invalid_media_url));
+            return;
+        }
+
+        try {
+            String title = TextUtils.isEmpty(audio.getTitle()) ? "TubeMusic audio" : audio.getTitle();
+            String extension = normalizeExtension(audio.getFileExtension());
+            String filename = sanitizeFilename(title) + "." + extension;
+
+            DownloadManager.Request request = new DownloadManager.Request(uri);
+            request.setTitle(title);
+            request.setDescription("TubeMusic · " + filename);
+            request.setNotificationVisibility(
+                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(false);
+            if (!TextUtils.isEmpty(audio.getMimeType())) {
+                request.setMimeType(audio.getMimeType());
+            }
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, filename);
+
+            DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (manager == null) {
+                throw new IllegalStateException("DownloadManager no disponible");
+            }
             manager.enqueue(request);
-            runOnUiThread(() -> {
-                Toast.makeText(MainActivity.this, "¡Descarga iniciada con éxito!", Toast.LENGTH_LONG).show();
-                etYoutubeUrl.setText("");
-            });
+            etMediaUrl.setText("");
+            showStatus(getString(R.string.download_queued));
+            Toast.makeText(this, R.string.download_queued, Toast.LENGTH_LONG).show();
+        } catch (Exception exception) {
+            showStatus(getString(R.string.download_error));
+        } finally {
+            setBusy(false);
         }
     }
 
-    private void mostrarError(String mensaje) {
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_LONG).show());
+    private String normalizeExtension(String extension) {
+        if (TextUtils.isEmpty(extension)) return "m4a";
+        String clean = extension.toLowerCase(Locale.ROOT).replace(".", "");
+        if (!clean.matches("[a-z0-9]{2,5}")) return "m4a";
+        return clean;
     }
-                               }
+
+    private String sanitizeFilename(String title) {
+        String clean = title.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+        if (clean.isEmpty()) clean = "TubeMusic audio";
+        return clean.length() > 100 ? clean.substring(0, 100) : clean;
+    }
+
+    private void setBusy(boolean busy) {
+        btnDownload.setEnabled(!busy);
+        progressBar.setVisibility(busy ? View.VISIBLE : View.GONE);
+    }
+
+    private void showStatus(String message) {
+        tvStatus.setText(message);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_STORAGE_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                showStatus("Permiso concedido. Tocá Preparar descarga nuevamente.");
+            } else {
+                showStatus(getString(R.string.storage_permission));
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdown();
+    }
+}

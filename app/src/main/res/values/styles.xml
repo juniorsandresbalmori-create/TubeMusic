@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TubeMusic" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/tm_purple</item>
+        <item name="colorPrimaryVariant">@color/tm_purple</item>
+        <item name="colorSecondary">@color/tm_purple_light</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:statusBarColor">@color/tm_background</item>
+        <item name="android:navigationBarColor">@color/tm_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/tm_background</item>
+    </style>
+</resources>

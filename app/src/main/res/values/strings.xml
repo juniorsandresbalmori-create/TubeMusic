@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TubeMusic</string>
+    <string name="home_title">Tu audio, simple.</string>
+    <string name="home_subtitle">Pegá un enlace compatible para preparar tu descarga.</string>
+    <string name="link_label">ENLACE DEL AUDIO</string>
+    <string name="link_hint">https://…</string>
+    <string name="download_button">Preparar descarga</string>
+    <string name="provider_pending">El proveedor de contenido todavía no está configurado.</string>
+    <string name="footer_note">Guardado en la carpeta Música del dispositivo cuando el proveedor esté disponible.</string>
+    <string name="error_empty_url">Pegá un enlace para continuar.</string>
+    <string name="error_provider_pending">La integración del proveedor está pendiente. Consultá la documentación para el próximo agente.</string>
+    <string name="error_invalid_media_url">El proveedor devolvió una dirección no válida. Solo se admiten enlaces HTTPS.</string>
+    <string name="download_queued">La descarga fue enviada al administrador de descargas de Android.</string>
+    <string name="download_error">No se pudo iniciar la descarga.</string>
+    <string name="storage_permission">Se necesita permiso de almacenamiento para guardar en Música en esta versión de Android.</string>
+</resources>
