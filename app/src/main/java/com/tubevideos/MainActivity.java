@@ -1,141 +1,95 @@
-package com.tubevideos;
+package com.juniorsandresbalmori.tubemusic
 
-import android.app.DownloadManager;
-import android.content.Context;
-import android.net.Uri;
-import android.os.Bundle;
-import android.os.Environment;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ProgressBar;
-import android.widget.Toast;
-import androidx.appcompat.app.AppCompatActivity;
+import android.os.Bundle
+import android.os.Environment
+import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
+import java.io.File
+import java.io.FileOutputStream
 
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.MobileAds;
+class MainActivity : AppCompatActivity() {
+    
+    private val TAG = "TubeMusicDownloader"
 
-import org.schabi.newpipe.extractor.NewPipe;
-import org.schabi.newpipe.extractor.ServiceList;
-import org.schabi.newpipe.extractor.stream.AudioStream;
-import org.schabi.newpipe.extractor.stream.StreamExtractor;
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main) // Asegúrate de tener este layout básico
 
-import java.util.concurrent.Executors;
-
-public class MainActivity extends AppCompatActivity {
-
-    private EditText etYoutubeUrl;
-    private Button btnDownload;
-    private ProgressBar progressBar;
-    private AdView adView;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        // Inicializar NewPipeExtractor con nuestro descargador
-        try {
-            NewPipe.init(DownloaderImpl.getInstance());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // Vincular elementos de la UI
-        etYoutubeUrl = findViewById(R.id.etYoutubeUrl);
-        btnDownload = findViewById(R.id.btnDownload);
-        progressBar = findViewById(R.id.progressBar);
-        adView = findViewById(R.id.adView);
-
-        // Inicializar AdMob
-        MobileAds.initialize(this, initializationStatus -> {});
-        AdRequest adRequest = new AdRequest.Builder().build();
-        adView.loadAd(adRequest);
-
-        // Botón de conversión / descarga
-        btnDownload.setOnClickListener(v -> {
-            String youtubeUrl = etYoutubeUrl.getText().toString().trim();
-            if (youtubeUrl.isEmpty()) {
-                Toast.makeText(MainActivity.this, "Por favor ingresa una URL válida", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            extraerYDescargar(youtubeUrl);
-        });
+        // Inicializar yt-dlp
+        initYtDlp()
+        
+        // Ejemplo de uso (puedes conectar esto a un botón o EditText en tu UI)
+        // downloadAudio("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
     }
 
-    private void extraerYDescargar(String youtubeUrl) {
-        // Mostrar barra de carga y bloquear botón
-        runOnUiThread(() -> {
-            progressBar.setVisibility(View.VISIBLE);
-            btnDownload.setEnabled(false);
-            Toast.makeText(MainActivity.this, "Extrayendo audio localmente...", Toast.LENGTH_SHORT).show();
-        });
-
-        // Ejecutar extracción en segundo plano
-        Executors.newSingleThreadExecutor().execute(() -> {
+    private fun initYtDlp() {
+        val assetName = "yt-dlp"
+        val file = File(filesDir, assetName)
+        
+        if (!file.exists()) {
             try {
-                // Obtener el extractor de YouTube
-                StreamExtractor extractor = ServiceList.YouTube.getStreamExtractor(youtubeUrl);
-                extractor.fetchPage();
-
-                String title = extractor.getName();
-                
-                // Buscar el mejor stream de audio disponible
-                AudioStream bestAudio = null;
-                for (AudioStream audioStream : extractor.getAudioStreams()) {
-                    if (bestAudio == null || audioStream.getAverageBitrate() > bestAudio.getAverageBitrate()) {
-                        bestAudio = audioStream;
+                assets.open(assetName).use { input ->
+                    FileOutputStream(file).use { output ->
+                        input.copyTo(output)
                     }
                 }
-
-                if (bestAudio != null) {
-                    String streamUrl = bestAudio.getContent();
-                    String ext = bestAudio.getFormat().getName();
-                    if (ext == null || ext.isEmpty()) {
-                        ext = "m4a"; // Extensión por defecto para audio de YouTube
-                    }
-
-                    // Iniciar descarga nativa en el dispositivo
-                    descargarEnDispositivo(streamUrl, title, ext);
-                } else {
-                    mostrarError("No se encontraron streams de audio disponibles.");
-                }
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                mostrarError("Error al extraer: " + e.getMessage());
-            } finally {
-                // Restaurar interfaz
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnDownload.setEnabled(true);
-                });
+                file.setExecutable(true)
+                Log.d(TAG, "yt-dlp binary copied and set executable.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error copying yt-dlp", e)
             }
-        });
-    }
-
-    private void descargarEnDispositivo(String downloadUrl, String title, String extension) {
-        String nombreLimpio = title.replaceAll("[\\\\/:*?\"<>|]", "_");
-        String nombreArchivo = nombreLimpio + "." + extension;
-
-        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
-        request.setTitle(title);
-        request.setDescription("Descargando con TubeMusic...");
-        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, nombreArchivo);
-
-        DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-        if (manager != null) {
-            manager.enqueue(request);
-            runOnUiThread(() -> {
-                Toast.makeText(MainActivity.this, "¡Descarga iniciada con éxito!", Toast.LENGTH_LONG).show();
-                etYoutubeUrl.setText("");
-            });
+        } else {
+            Log.d(TAG, "yt-dlp binary already exists.")
         }
     }
 
-    private void mostrarError(String mensaje) {
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, mensaje, Toast.LENGTH_LONG).show());
+    fun downloadAudio(url: String) {
+        // Verificar permisos antes de ejecutar (simplificado para el ejemplo)
+        // En producción, usa ActivityResultContracts.RequestPermission
+        
+        Thread {
+            try {
+                val ytDlpBin = File(filesDir, "yt-dlp")
+                
+                // Definir dónde guardar
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_MUSIC)
+                val outputPath = "$downloadsDir/%(title)s.%(ext)s"
+                
+                // Comando: yt-dlp -x --audio-format mp3 -o [ruta] [url]
+                val command = arrayOf(
+                    ytDlpBin.absolutePath,
+                    "-x",
+                    "--audio-format", "mp3",
+                    "-o", outputPath,
+                    url
+                )
+                
+                Log.d(TAG, "Executing: ${command.joinToString(" ")}")
+                
+                val process = ProcessBuilder(*command).start()
+                
+                // Leer errores para depuración
+                val errorOutput = process.errorStream.bufferedReader().readText()
+                if (errorOutput.isNotEmpty()) {
+                    Log.w(TAG, "yt-dlp warnings/errors: $errorOutput")
+                }
+                
+                val exitCode = process.waitFor()
+                
+                if (exitCode == 0) {
+                    Log.d(TAG, "Download successful!")
+                    // Aquí puedes notificar al usuario o actualizar la UI
+                    runOnUiThread {
+                        // Toast.makeText(this, "Descarga completada", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Log.e(TAG, "Download failed with code: $exitCode")
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception during download", e)
+            }
+        }.start()
     }
-                               }
+                     }
