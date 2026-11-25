@@ -1,21 +1,17 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
 }
 
 android {
-    namespace 'com.juniorsandresbalmori.tubemusic'
-    compileSdk 34 // Asegúrate de tener las SDK tools actualizadas
+    namespace 'com.juniorsandresbalmori.tubemusic' // <--- CAMBIA ESTO POR TU PAQUETE REAL
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.juniorsandresbalmori.tubemusic"
-        minSdk 21 // Soporte para dispositivos antiguos
+        minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
-        
-        // Habilitar multidex si es necesario, aunque en apps pequeñas no suele serlo
-        multiDexEnabled true
     }
 
     buildTypes {
@@ -24,12 +20,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = '1.8'
     }
 }
 
@@ -37,8 +31,4 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    
-    // Librería para manejar procesos asíncronos si decides usarla más adelante
-    // implementation 'io.reactivex.rxjava3:rxandroid:3.0.2'
 }
