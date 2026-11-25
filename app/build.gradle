@@ -1,24 +1,21 @@
 plugins {
     id 'com.android.application'
-    id 'com.chaquo.python'
+    id 'org.jetbrains.kotlin.android'
 }
 
 android {
-    namespace 'com.tubevideos'
-    compileSdk 34
+    namespace 'com.juniorsandresbalmori.tubemusic'
+    compileSdk 34 // Asegúrate de tener las SDK tools actualizadas
 
     defaultConfig {
-        applicationId "com.tubevideos"
-        minSdk 24
+        applicationId "com.juniorsandresbalmori.tubemusic"
+        minSdk 21 // Soporte para dispositivos antiguos
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
-
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
-        ndk {
-            abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
-        }
+        versionCode 1
+        versionName "1.0"
+        
+        // Habilitar multidex si es necesario, aunque en apps pequeñas no suele serlo
+        multiDexEnabled true
     }
 
     buildTypes {
@@ -27,24 +24,21 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
-}
-
-python {
-    version "3.11"
-    pip {
-        options "--no-deps"
-        install "yt-dlp"
+    kotlinOptions {
+        jvmTarget = '1.8'
     }
 }
 
 dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    
+    // Librería para manejar procesos asíncronos si decides usarla más adelante
+    // implementation 'io.reactivex.rxjava3:rxandroid:3.0.2'
 }
